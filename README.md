@@ -4,5 +4,5 @@ Continuous Hidden Time Markov Chain for tracking the evolution of irregularity, 
 
 To proceed with the code, create a new Anaconda environment with `python=3.11`. You can do that by calling `conda create -n <ENV_NAME> python=3.11`. After which, you should activate the environment with `conda activate <ENV_NAME>` and install `R=4.4`. For the latter, call `conda install -c conda-forge r-base=4.4`. Finally, you should be able to install RStan by calling `conda install -c conda-forge r-rstan` and this should take care of C++ toolchain too. 
 
-
+Windows users can create new environment from `requirements.txt`, I will explore how to make it available to Mac, as well.
 
