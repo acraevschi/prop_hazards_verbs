@@ -18,13 +18,13 @@ data {
 
 parameters {
   // Transition parameters (baseline rates and frequency effects)
-  matrix[4, 4] log_lambda;             // Baseline log transition rates (diag ignored)
-  real beta_trans;             // Frequency effect on transition rates
+  matrix[N_states, N_states] log_lambda;             // Baseline log transition rates (diag ignored)
+  matrix[N_states, N_states] beta_trans;             // Frequency effect on transition rates
 
   // add parameter for each dialect group
   vector[n_dialects] beta_dialects; // Dialect effects on emission probabilities
 
-  simplex[4] initial_probs; // Initial state probabilities
+  simplex[N_states] initial_probs; // Initial state probabilities
 
   // Spline coefficients for emission probabilities | maybe not necessary to distinguish between vowels and consonants
   vector[num_basis] beta_v_true1;      // Vowel true=1 coefficients
@@ -36,14 +36,17 @@ parameters {
 model {
   // Priors
   to_vector(log_lambda) ~ normal(0, 1);
-  beta_trans ~ normal(0, 1);
+  to_vector(beta_trans) ~ normal(0, 1);
   beta_v_true1 ~ normal(0, 1);
   beta_v_true0 ~ normal(0, 1);
   beta_c_true1 ~ normal(0, 1);
   beta_c_true0 ~ normal(0, 1);
   beta_dialects ~ normal(0, 1);
-
-  initial_probs ~ dirichlet([3.0, 2.0, 2.0, 1.0]'); // Prior for initial state probabilities
+  // Prior for initial state probabilities; 
+  initial_probs ~ dirichlet([3.0, 2.0, 2.0, 1.0]');
+  // TODO: Flat with values of 1, and add 1 for each count of the state in the data at time t=0
+  // This will bias the initial state probabilities towards the observed counts in the data
+  
 
   for (v in 1:N_verbs) {
     // Dealing with observations for each verb
@@ -54,13 +57,13 @@ model {
       obs_v_indices[i] = verb_starts[v] + i - 1;
     }
 
-    vector[4] log_forward[T];
+    vector[N_states] log_forward[T];
 
-    // Initialize with uniform prior
+    // Initialize with the prior
     log_forward[1] = log(initial_probs);
 
     // First observation
-    for (s in 1:4) {
+    for (s in 1:N_states) {
       int v_true;
       int c_true;
   
@@ -103,29 +106,30 @@ model {
       int curr_idx = obs_v_indices[t];
 
       // Construct rate matrix with frequency effect
-      matrix[4, 4] Q = rep_matrix(0.0, 4, 4);
-      for (i in 1:4) {
+      matrix[N_states, N_states] Q = rep_matrix(0.0, N_states, N_states);
+      for (i in 1:N_states) {
         real total_rate = 0.0;
-        for (j in 1:4) {
+        for (j in 1:N_states) {
             if (i != j) {
                 // Get transition rate
-                Q[i, j] = exp(log_lambda[i, j] + beta_trans * freq[prev_idx]) + 1e-9; // Avoid zero rates
+                Q[i, j] = exp(log_lambda[i, j] + beta_trans[i, j] * freq[prev_idx]) + 1e-9; // Avoid zero rates
                 total_rate += Q[i, j];
             }
         }
             Q[i, i] = -total_rate;
+            beta_trans[i, i] = 0; // Set diagonal to zero
       }
 
-      matrix[4, 4] P = matrix_exp(Q * delta_t);
-      matrix[4, 4] log_P = log(P + 1e-9); // Avoid log(0)
+      matrix[N_states, N_states] P = matrix_exp(Q * delta_t);
+      matrix[N_states, N_states] log_P = log(P + 1e-9); // Avoid log(0)
 
       // Update forward probabilities
-      for (j in 1:4) {
+      for (j in 1:N_states) {
         log_forward[t][j] = log_sum_exp(log_forward[t-1] + log_P[, j]);
       }
 
       // Apply emission probabilities
-      for (s in 1:4) {
+      for (s in 1:N_states) {
 
         int v_true;
         int c_true;
