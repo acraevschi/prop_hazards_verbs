@@ -117,7 +117,6 @@ model {
             }
         }
             Q[i, i] = -total_rate;
-            beta_trans[i, i] = 0; // Set diagonal to zero
       }
 
       matrix[N_states, N_states] P = matrix_exp(Q * delta_t);
