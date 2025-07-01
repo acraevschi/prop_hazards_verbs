@@ -73,12 +73,24 @@ data_list <- list(
 hmm_fit <- stan(
   file = "models/stan_models/test_model_paradigms_measure_error.stan",
   data = data_list,
-  iter = 1500,
-  warmup = 1000,
+  iter = 3000,
+  warmup = 2000,
   chains = 4,
   cores = 4,
+  control=list(adapt_delta=0.99)
 )
 
-saveRDS(hmm_fit, "fits/hmm_fit_paradigms_measure_error.rds")
+output_dir <- "fits/"
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir, recursive = TRUE)
+}
+
+output_path <- paste0(output_dir, "test_fit_paradigms_measure_error.rds")
+
+if (file.exists(output_path)) {
+  file.remove(output_path)
+}
+
+saveRDS(hmm_fit, output_path)
 # rows with Rhat == NaN are fine, those are just the parameters that are not estimated in this model
 ### There are still convergence issues, although I have only tried very few iterations and not used adapt_delta

@@ -74,8 +74,8 @@ transformed parameters {
                                       (N_principal_parts * 1.0);
       
       // Use lemma-specific adjustment (l) but apply to all time points
-      true_irregularity_index[l,t] = inv_logit(irregularity_index[l,t] + 
-                                     irregularity_adjustment[l] * missing_forms_proportion);
+      true_irregularity_index[l,t] = irregularity_index[l,t] + 
+                                     inv_logit(irregularity_adjustment[l] * missing_forms_proportion);
     }
   }
 }
@@ -98,7 +98,7 @@ model {
   gamma_irreg ~ normal(0, 1);  // Can be positive (supports Paul) or negative (rejects Paul)
   
   // Prior for raw paradigm influence matrix (only off-diagonal)
-  to_vector(paradigm_influence_raw) ~ normal(0.5, 0.5); 
+  to_vector(paradigm_influence_raw) ~ normal(0, 1); 
   // Cross-influence between parts; more likely to be positive or 0 (i.e., some effect or no effect, not negative)
   
   // Hyper-priors for irregularity adjustment
