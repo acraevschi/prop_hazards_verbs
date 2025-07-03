@@ -3,6 +3,9 @@ library(dplyr)
 library(splines)  # For B-spline basis generation
 library(jsonlite)  # For reading JSON metadata
 
+rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores())
+
 # Read and prepare data
 data_path <- "data/transitions_data.csv"
 metadata_path <- "data/transitions_data_metadata.json"
@@ -73,11 +76,12 @@ data_list <- list(
 hmm_fit <- stan(
   file = "models/stan_models/test_model_paradigms_measure_error.stan",
   data = data_list,
-  iter = 3000,
-  warmup = 2000,
+  iter = 2500,
+  warmup = 1500,
   chains = 4,
   cores = 4,
-  control=list(adapt_delta=0.99)
+  seed = 97,
+  control=list(adapt_delta=0.975)
 )
 
 output_dir <- "fits/"

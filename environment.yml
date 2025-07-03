@@ -1,12 +1,13 @@
 name: hmm_irregularity
 channels:
-  - defaults
+  - conda-forge
 dependencies:
   - pandas=2.2.3
   - python=3.11.11
-  - r-base=4.3
-  - r-dplyr=1.1.4
-  - r-rstan=2.32.6
+  - conda-forge::r-base=4.3
+  - conda-forge::r-essentials
+  - conda-forge::r-dplyr=1.1.4
+  - conda-forge::r-rstan=2.32.6
   - matplotlib
   - seaborn
   - conda-forge::r-codetools
