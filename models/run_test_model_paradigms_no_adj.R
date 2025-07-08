@@ -58,14 +58,18 @@ data_list <- list(
   n_dialects = max(data$dialect_id),
   verb_starts = verb_indices$start,
   verb_ends = verb_indices$end,
+  num_basis = num_basis,
+  basis = basis,
   # New variables for paradigm model
   N_lemmas = metadata$n_lemmas,
   lemma_id = data$lemma_id,
+  # N_principal_parts = metadata$n_principal_parts, # Will be corrected later in python script
   N_principal_parts = metadata$n_principal_parts,
   principal_part_id = data$principal_part_id,
   n_time_points = metadata$n_time_points,
   unique_times = metadata$unique_times,
   irregularity_index = metadata$irregularity_index,
+  m_values = metadata$m_values
 )
 
 # Run Stan model
