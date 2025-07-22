@@ -12,8 +12,8 @@ data {
   int<lower=1> dialect_id[N_obs];      // Dialect ID for each observation, covariate for emission probabilities
   int<lower=1> verb_starts[N_verbs];   // Starting index for each form
   int<lower=1> verb_ends[N_verbs];     // Ending index for each form
-  int<lower=1> num_basis;              // Number of spline basis functions
-  matrix[N_obs, num_basis] basis;      // B-spline basis matrix for all observations
+  int<lower=1> num_basis;              // Number of spline basis functions; still under consideration
+  matrix[N_obs, num_basis] basis;      // B-spline basis matrix for all observations; still under consideration
 }
 
 parameters {
@@ -162,7 +162,6 @@ model {
         log_forward[t][s] += bernoulli_logit_lpmf(obs_v[curr_idx] | logit_v) + bernoulli_logit_lpmf(obs_c[curr_idx] | logit_c);
       }
     }
-
     target += log_sum_exp(log_forward[T]);
   }
 }

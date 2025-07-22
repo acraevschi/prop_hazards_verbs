@@ -1,9 +1,12 @@
 library(rstan)
 library(dplyr)
 library(splines)  # For B-spline basis generation
+library(jsonlite)  # For reading JSON metadata
 
 # Read and prepare data
-data_path <- "data/verner_transitions.csv"
+data_path <- "data/transitions_data.csv"
+metadata_path <- "data/transitions_data_metadata.json"
+
 if (!file.exists(data_path)) {
     setwd("..")  # Move up one level if running from the `models/stan_models/` folder
 }
@@ -17,7 +20,10 @@ data <- read.csv(data_path) %>%
     freq = exp(rnorm(nrow(.), mean = 0, sd = 0.75))
   )
 
-# Generate B-spline basis matrix for temporal emissions | this is a placeholder, we can think of concrete basis and degree later
+# Read metadata with paradigm and irregularity information
+metadata <- fromJSON(metadata_path)
+
+# Generate B-spline basis matrix for temporal emissions 
 num_basis <- 5  # Start with 5 basis functions 
 basis <- bs(data$time, 
            df = num_basis, 
@@ -33,12 +39,12 @@ verb_indices <- data %>%
     .groups = 'drop'
   )
 
-
 # Prepare Stan data
 data_list <- list(
+  # Original variables
   N_verbs = max(data$form_id),
   N_obs = nrow(data),
-  N_states = 4,
+  N_states = metadata$n_principal_parts,
   form = data$form_id,
   time = data$time,
   time_since_prev = data$time_since_prev/100,  # Scaling if needed
@@ -49,19 +55,35 @@ data_list <- list(
   n_dialects = max(data$dialect_id),
   verb_starts = verb_indices$start,
   verb_ends = verb_indices$end,
-  # Spline-related data
   num_basis = num_basis,
-  basis = basis
+  basis = basis,
+  # New variables for paradigm model
+  N_lemmas = metadata$n_lemmas,
+  lemma_id = data$lemma_id,
+  # N_principal_parts = metadata$n_principal_parts, # Will be corrected later in python script
+  N_principal_parts = metadata$n_principal_parts,
+  principal_part_id = data$principal_part_id,
+  n_time_points = metadata$n_time_points,
+  unique_times = metadata$unique_times,
+  irregularity_index = metadata$irregularity_index,
+  m_values = metadata$m_values
 )
 
 # Run Stan model
 hmm_fit <- stan(
-  file = "models/stan_models/test_model_time.stan",
+  file = "models/stan_models/test_model_time_paradigms_measure_error.stan",
   data = data_list,
-  iter = 2500,
-  warmup = 1500,
+  iter = 1250,
+  warmup = 750,
   chains = 4,
   cores = 4,
 )
 
-print(hmm_fit)
+saveRDS(hmm_fit, "fits/hmm_fit_time_paradigms_measure_error.rds")
+
+fit <- readRDS("fits/hmm_fit_time_paradigms_measure_error.rds")
+fit_summary <- summary(fit)$summary
+fit_summ_true_irreg <- summary(fit, pars="true_irregularity_index")$summary
+
+max(fit_summ_true_irreg[,"mean"])
+min(fit_summ_true_irreg[,"mean"])
