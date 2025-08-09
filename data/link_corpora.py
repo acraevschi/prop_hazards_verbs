@@ -10,7 +10,6 @@ mhg_lemmas = mhg["lemma"].unique().tolist()
 enhg = pd.read_csv("./data/enhg_corpus.csv")
 enhg_lemmas = enhg["lemma"].unique().tolist()
 
-
 def clean_text(text):
     # Remove parentheses for consistency
     return re.sub(r"[()]", "", text).strip()
@@ -38,8 +37,8 @@ with open("./data/lemmas/mhg_lemmas.txt", "w", encoding="utf-8") as f:
 with open("./data/lemmas/mhg_mapping.json", "w", encoding="utf-8") as f:
     json.dump(mhg_clean_unclean, f, ensure_ascii=False, indent=4)
 
-### ENHG
 
+### ENHG
 
 def get_base_form(lemma, all_lemmas):
     if len(lemma) <= 4:
