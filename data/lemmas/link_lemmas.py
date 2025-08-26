@@ -9,11 +9,12 @@ import json
 # ------------------------------------------------------------------
 # Configuration
 # ------------------------------------------------------------------
-SERVER_SEED = 97 # not used here but rather when starting LM Studio server
-LM_STUDIO_URL = "http://localhost:1234/v1/completions"   # LM Studio endpoint
-DWDS_BASE_URL  = "https://www.dwds.de/wb/etymwb"
-X_PATH         = "/html/body/main/div[1]/div/div[1]/div[1]/div[3]"
-HEADERS        = {"Content-Type": "application/json"}
+SERVER_SEED = 97  # not used here but rather when using LM Studio, here for reference
+LM_STUDIO_URL = "http://localhost:1234/v1/completions"  # LM Studio endpoint
+DWDS_BASE_URL = "https://www.dwds.de/wb/etymwb"
+X_PATH = "/html/body/main/div[1]/div/div[1]/div[1]/div[3]"
+HEADERS = {"Content-Type": "application/json"}
+
 
 # ------------------------------------------------------------------
 # Helper: scrape the etymology section from DWDS
@@ -26,8 +27,8 @@ def get_etymology_section(lemma: str) -> str:
     try:
         response = requests.get(f"{DWDS_BASE_URL}/{lemma}", timeout=10)
         response.raise_for_status()
-        tree   = html.fromstring(response.content)
-        elem   = tree.xpath(X_PATH)
+        tree = html.fromstring(response.content)
+        elem = tree.xpath(X_PATH)
 
         if not elem:
             return ""
@@ -39,6 +40,7 @@ def get_etymology_section(lemma: str) -> str:
         print(f"Error fetching {lemma}: {e}")
         return ""
 
+
 # ------------------------------------------------------------------
 # Helper: extract MHG forms from an etymology string
 # ------------------------------------------------------------------
@@ -49,6 +51,7 @@ def extract_mhg_forms(etym_text: str) -> list[str]:
     """
     # Capture the word after "mhd." up to whitespace, comma or semicolon
     return re.findall(r"mhd\.\s+([^\s,;]+)", etym_text)
+
 
 # ------------------------------------------------------------------
 # Helper: Levenshtein distance (simple implementation)
@@ -65,20 +68,19 @@ def levenshtein(a: str, b: str) -> int:
     for i, ca in enumerate(a, 1):
         current_row = [i]
         for j, cb in enumerate(b, 1):
-            insertions   = previous_row[j] + 1
-            deletions    = current_row[j - 1] + 1
+            insertions = previous_row[j] + 1
+            deletions = current_row[j - 1] + 1
             substitutions = previous_row[j - 1] + (ca != cb)
             current_row.append(min(insertions, deletions, substitutions))
         previous_row = current_row
 
     return previous_row[-1]
 
+
 # ------------------------------------------------------------------
 # Helper: ask the LLM for the best matching MHG lemmas
 # ------------------------------------------------------------------
-def query_llm(enhg_lemma: str,
-              etymology_text: str,
-              mhg_candidates: list[str]) -> str:
+def query_llm(enhg_lemma: str, etymology_text: str, mhg_candidates: list[str]) -> str:
     """
     Returns raw text from LM Studio. The prompt asks the model to output
     a comma‑separated list of 1–3 best candidates inside square brackets.
@@ -90,39 +92,46 @@ def query_llm(enhg_lemma: str,
         return "[]"
 
     prompt = f"""
-Analyze the following Early New High German (ENHG) lemma and its etymological data to identify the most likely Middle High German (MHG) lemma(s) from the provided candidate list.
+You are given an Early New High German (ENHG) lemma, an etymology text, and a list of candidate Middle High German (MHG) lemmas.
+
+Task:
+1. Use the etymology text as the primary source to identify which MHG lemmas the ENHG lemma most likely derives from.
+2. If the etymology mentions specific MHG forms, prefer those.
+3. If multiple candidates match, pick the 1–3 most likely ones from the provided list based on meaning and phonetic similarity.
+4. Do NOT include any words that are not in the candidate list.
 
 ENHG Lemma: {enhg_lemma}
-Etymology Text: {etymology_text}
 
-Candidate MHG Lemmas: {', '.join(mhg_candidates)}
+Etymology Text:
+{etymology_text}
 
-Please output a list of 1–3 MHG lemmas that you think are most likely linked to the ENHG lemma. Output should be in square brackets, comma‑separated, e.g., "[first_match, second_match]". If only one candidate is certain, output just that single form inside brackets.
+Candidate MHG Lemmas:
+{', '.join(mhg_candidates)}
+
+Output format:
+Return ONLY a list of 1–3 candidates inside square brackets, comma-separated, e.g.:
+[lemma1, lemma2]
+
+Do not add explanations or any other text outside the brackets.
 """
 
-    payload = {
-        "prompt": prompt,
-        "max_tokens": -1,
-        "temperature": 0.3
-    }
+    payload = {"prompt": prompt, "max_tokens": -1, "temperature": 0.3}
 
     try:
-        r = requests.post(LM_STUDIO_URL,
-                          json=payload,
-                          headers=HEADERS,
-                          timeout=120)
+        r = requests.post(LM_STUDIO_URL, json=payload, headers=HEADERS, timeout=120)
         return r.json()["choices"][0]["text"].strip()
     except Exception as e:
         print(f"LLM query failed: {e}")
         # Safe fallback – empty list
         return "[]"
 
+
 # ------------------------------------------------------------------
 # Main pipeline
 # ------------------------------------------------------------------
-def process_lemmas(enhg_lemmas: list[str],
-                   mhg_candidates: list[str],
-                   output_file: str) -> None:
+def process_lemmas(
+    enhg_lemmas: list[str], mhg_candidates: list[str], output_file: str
+) -> None:
     """
     Writes a CSV with columns:
         ENHG Lemma, MHG Candidates, Link
@@ -136,25 +145,21 @@ def process_lemmas(enhg_lemmas: list[str],
         for lemma in tqdm(enhg_lemmas, desc="Processing lemmas"):
             # 1️⃣ Scrape etymology
             etymology_text = get_etymology_section(lemma)
-            link           = f"{DWDS_BASE_URL}/{lemma}"
+            link = f"{DWDS_BASE_URL}/{lemma}"
 
             if not etymology_text:
-                writer.writerow({
-                    "ENHG Lemma": lemma,
-                    "MHG Candidates": "",
-                    "Link": link
-                })
+                writer.writerow(
+                    {"ENHG Lemma": lemma, "MHG Candidates": "", "Link": link}
+                )
                 continue
 
             # 2️⃣ Extract MHG forms from the text
             extracted_forms = extract_mhg_forms(etymology_text)
 
             if not extracted_forms:
-                writer.writerow({
-                    "ENHG Lemma": lemma,
-                    "MHG Candidates": "",
-                    "Link": link
-                })
+                writer.writerow(
+                    {"ENHG Lemma": lemma, "MHG Candidates": "", "Link": link}
+                )
                 continue
 
             # 3️⃣ Build a filtered candidate list (exact matches + top‑30 by edit distance)
@@ -173,7 +178,7 @@ def process_lemmas(enhg_lemmas: list[str],
             llm_resp = query_llm(lemma, etymology_text, filtered_candidates)
 
             # 5️⃣ Parse the LLM output (e.g. "[springen, bespringen]")
-            matches = re.findall(r'\[([^\]]*)\]', llm_resp)
+            matches = re.findall(r"\[([^\]]*)\]", llm_resp)
             if matches:
                 content = matches[-1]  # Take last match (most likely the output)
                 # Split by comma and clean each candidate
@@ -184,11 +189,9 @@ def process_lemmas(enhg_lemmas: list[str],
             selected_cands = selected_cands[:3]
             selected_str = "; ".join(selected_cands)
 
-            writer.writerow({
-                "ENHG Lemma": lemma,
-                "MHG Candidates": selected_str,
-                "Link": link
-            })
+            writer.writerow(
+                {"ENHG Lemma": lemma, "MHG Candidates": selected_str, "Link": link}
+            )
 
             print(f"Processed: {lemma} | Selected: {selected_str}")
 
@@ -198,13 +201,12 @@ def process_lemmas(enhg_lemmas: list[str],
 # ------------------------------------------------------------------
 
 if __name__ == "__main__":
-    enhg_df   = pd.read_csv("./data/enhg_corpus.csv")
-    input_enhg = enhg_df["lemma"].unique().tolist()
+    enhg_mapping = json.load(open("./data/lemmas/enhg_mapping.json", encoding="utf-8"))
+    input_enhg = list(set(enhg_mapping.values()))
 
-    mhg_mapping     = json.load(open("./data/lemmas/mhg_mapping.json",
-                                     encoding="utf-8"))
-    mhg_candidates  = list(set(mhg_mapping.values()))
+    mhg_mapping = json.load(open("./data/lemmas/mhg_mapping.json", encoding="utf-8"))
+    mhg_candidates = list(set(mhg_mapping.values()))
 
-    process_lemmas(input_enhg,
-                   mhg_candidates,
-                   output_file="./data/lemmas/etymology_matches.csv")
+    process_lemmas(
+        input_enhg, mhg_candidates, output_file="./data/lemmas/etymology_matches.csv"
+    )
