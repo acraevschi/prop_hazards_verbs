@@ -14,7 +14,7 @@ LM_STUDIO_URL = "http://localhost:1234/v1/completions"  # LM Studio endpoint
 DWDS_BASE_URL = "https://www.dwds.de/wb/etymwb"
 X_PATH = "/html/body/main/div[1]/div/div[1]/div[1]/div[3]"
 HEADERS = {"Content-Type": "application/json"}
-
+N_CANDS = 50
 
 # ------------------------------------------------------------------
 # Helper: scrape the etymology section from DWDS
@@ -162,14 +162,14 @@ def process_lemmas(
                 )
                 continue
 
-            # 3️⃣ Build a filtered candidate list (exact matches + top‑30 by edit distance)
+            # 3️⃣ Build a filtered candidate list (exact matches + top-N_CANDS by edit distance)
             # Exact matches are automatically included because they have distance 0.
             candidate_set = set()
 
             for form in extracted_forms:
                 distances = [(cand, levenshtein(form, cand)) for cand in mhg_candidates]
                 distances.sort(key=lambda x: x[1])
-                top_cands = [cand for cand, _ in distances[:30]]
+                top_cands = [cand for cand, _ in distances[:N_CANDS]]
                 candidate_set.update(top_cands)
 
             filtered_candidates = sorted(candidate_set)  # deterministic order
