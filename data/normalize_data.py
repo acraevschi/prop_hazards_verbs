@@ -33,6 +33,7 @@ def parse_category(s):
 
 
 def map_category(s):
+    # explicit special cases
     if s == "infinitive":
         return 1
     if s == "past_participle":
@@ -45,52 +46,37 @@ def map_category(s):
     if tense is None:
         return None
 
+    # Present tense (Pres): map all present forms to principal part 1 (infinitive)
     if tense == "Pres":
-        if mood is None or mood == "*":
-            if number is not None and person is not None:
-                if number == "Sg" and person in ["1", "3"]:
-                    return None
+        return 1
+
+    # Past tense:
+    # - Preterite subjunctive (Konj./Subj + Past) -> PP3
+    # - Indicative (or unspecified mood treated as Indic):
+    #     * Sg + person 1 or 3 -> PP2
+    #     * Sg + person 2 -> PP3
+    #     * Pl + any person -> PP3
+    if tense == "Past":
+        if mood == "Subj":
+            return 3
+
+        if mood is None or mood == "Ind" or mood == "*":
+            if number == "Sg":
+                if person in ["1", "3"]:
+                    return 2
+                elif person == "2":
+                    return 3
                 else:
-                    return 1
-            else:
-                return None
-        else:
-            if mood == "Subj":
-                return 1
-            else:
-                if number is not None and person is not None:
-                    if number == "Sg" and person in ["1", "3"]:
-                        return 2
-                    else:
-                        return 1
-                else:
                     return None
-    elif tense == "Past":
-        if mood is None or mood == "*":
-            if number is not None and person is not None:
-                if (number == "Sg" and person == "2") or (
-                    number == "Pl" and person in ["1", "2", "3"]
-                ):
+            elif number == "Pl":
+                if person in ["1", "2", "3"]:
                     return 3
                 else:
                     return None
             else:
                 return None
-        else:
-            if mood == "Subj":
-                return 3
-            else:
-                if number is not None and person is not None:
-                    if (number == "Sg" and person == "2") or (
-                        number == "Pl" and person in ["1", "2", "3"]
-                    ):
-                        return 3
-                    else:
-                        return None
-                else:
-                    return None
-    else:
-        return None
+
+    return None
 
 
 def main(args):
@@ -122,6 +108,7 @@ def main(args):
         axis=1,
         inplace=True,
     )
+    data["principal_part"] = data["principal_part"].astype(int)
     data.reset_index(drop=True, inplace=True)
 
     data.to_csv(args.output, index=False)
