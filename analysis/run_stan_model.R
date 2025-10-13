@@ -186,11 +186,11 @@ run_analysis <- function(obs_file, seq_file, model_file, output_file = NA, aggre
   fit <- sampling(
     model,
     data = stan_data,
-    iter = 2000,
-    chains = 1,
+    iter = 3000,
+    chains = 4,
     warmup = 1000,
     seed = 97,
-    refresh = 10,
+    refresh = 100
   )
   
   # Save results
@@ -199,9 +199,21 @@ run_analysis <- function(obs_file, seq_file, model_file, output_file = NA, aggre
   return(fit)
 }
 
-fit <- run_analysis(
-    obs_file = "analysis/obs_aggr.csv",
-    seq_file = "analysis/seq_aggr.csv", 
-    model_file = "analysis/models/markov_model_aggr.stan",
-    aggregated = TRUE
+# Allow running from command line with arguments
+args <- commandArgs(trailingOnly = TRUE)
+
+if (length(args) >= 3) {
+  obs_file <- args[1]
+  seq_file <- args[2]
+  model_file <- args[3]
+  output_file <- if (length(args) >= 4) args[4] else NA
+  aggregated <- if (length(args) >= 5) as.logical(args[5]) else TRUE
+
+  fit <- run_analysis(
+    obs_file = obs_file,
+    seq_file = seq_file,
+    model_file = model_file,
+    output_file = output_file,
+    aggregated = aggregated
   )
+}
