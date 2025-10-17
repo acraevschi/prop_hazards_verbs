@@ -1,9 +1,9 @@
 functions {
   // Build transition probability matrix P = expm(Q * dt)
-  matrix get_transition_matrix(vector rates, real beta_form, real beta_lemma,
+  matrix get_transition_matrix(vector rates, real beta_form,
                                real beta_bipartite,
                                real lemma_eff,
-                               real form_freq, real lemma_freq,
+                               real form_freq,
                                real prop_bipartite, real time_interval) {
     matrix[4,4] Q;
     matrix[4,4] P;
@@ -15,7 +15,6 @@ functions {
           real base = rates[idx];
           real lr = log(base + 1e-9)
                     + beta_form * form_freq
-                    + beta_lemma * lemma_freq
                     + beta_bipartite * prop_bipartite
                     + lemma_eff;
           Q[i,j] = exp(lr);
@@ -39,8 +38,7 @@ data {
   int<lower=0> totals[M, max_T];    // totals per timepoint (for checks / diagnostics)
   real time_intervals[M, max_T - 1];
 
-  real form_freq[M, max_T];   // log-transformed already (use small floor before log in R/Python)
-  real lemma_freq[M, max_T];  // log-transformed already
+  real form_freq[M, max_T];  // centre-transformed already
   real prop_bipartite[M, max_T]; // [0..1], lemma-level at source time
 
   int<lower=1> N_lemmas;
@@ -55,7 +53,6 @@ data {
 parameters {
   vector<lower=0>[12] baseline_rates; // off-diagonal base rates (positive)
   real beta_form;
-  real beta_lemma;
   real beta_bipartite;
 
   vector[N_lemmas] lemma_eff_raw;
@@ -63,7 +60,6 @@ parameters {
 
   real<lower=0> kappa; // concentration for converting propagated mean -> Dirichlet prior
 
-  // (no per-sequence pi_init; we use alpha_prior and update via Dirichlet-multinomial)
 }
 
 transformed parameters {
@@ -72,15 +68,14 @@ transformed parameters {
 
 model {
   // Priors
-  baseline_rates ~ exponential(1.0);
+  baseline_rates ~ exponential(2.0);
   beta_form ~ normal(0, 1);
-  beta_lemma ~ normal(0, 1);
   beta_bipartite ~ normal(0, 1);
   lemma_eff_raw ~ normal(0,1);
-  sigma_lemma ~ exponential(1.0);
+  sigma_lemma ~ exponential(3);
 
-  // kappa (concentration) prior: moderate prior, adapt as needed
-  kappa ~ exponential(1.0);
+  // kappa (concentration) prior
+  kappa ~ gamma(3, 0.5); // mean~6; a bit higher
 
   // Likelihood via sequential Bayesian updating (Dirichlet prior + CTMC propagation)
   for (m in 1:M) {
@@ -98,11 +93,11 @@ model {
 
     // propagate+update for subsequent timepoints
     for (t in 1:(T_len[m] - 1)) {
-      // form_freq, lemma_freq, prop_bipartite at time t are used to form Q
+      // form_freq, prop_bipartite at time t are used to form Q
       matrix[4,4] P = get_transition_matrix(
-                        baseline_rates, beta_form, beta_lemma, beta_bipartite,
+                        baseline_rates, beta_form, beta_bipartite,
                         lemma_eff[lemma_id[m]],
-                        form_freq[m,t], lemma_freq[m,t],
+                        form_freq[m,t],
                         prop_bipartite[m,t], time_intervals[m,t]);
 
       // current posterior mean
@@ -142,9 +137,9 @@ generated quantities {
 
     for (t in 1:(T_len[m] - 1)) {
       matrix[4,4] P = get_transition_matrix(
-                        baseline_rates, beta_form, beta_lemma, beta_bipartite,
+                        baseline_rates, beta_form, beta_bipartite,
                         lemma_eff[lemma_id[m]],
-                        form_freq[m,t], lemma_freq[m,t],
+                        form_freq[m,t],
                         prop_bipartite[m,t], time_intervals[m,t]);
 
       real alpha_sum = sum(alpha);

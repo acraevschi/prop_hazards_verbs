@@ -134,8 +134,8 @@ prepare_stan_data_aggregated <- function(obs_csv, seq_csv) {
     counts = counts,    # integer[M, max_T, 4]
     totals = totals,    # integer[M, max_T]
     time_intervals = time_intervals,
-    form_freq = log(form_freq),
-    lemma_freq = log(lemma_freq),
+    form_freq = (form_freq - mean(form_freq))/sd(form_freq),
+    lemma_freq = (lemma_freq - mean(lemma_freq))/sd(lemma_freq),
     prop_bipartite = prop_bipartite,
     lemma_id = lemma_id,
     principal_part = principal_part,
@@ -151,11 +151,12 @@ prepare_stan_data_aggregated <- function(obs_csv, seq_csv) {
 }
 
 # Run Stan model (rest of the function remains the same)
-run_analysis <- function(obs_file, seq_file, model_file, output_file = NA, aggregated = FALSE){
+run_analysis <- function(obs_file, seq_file, model_file, aggregated = TRUE, output_file = NA){
   if (is.na(output_file)) {
     file_name <- basename(model_file)
-    file_name <- strsplit(file_name, split=".", fixed=T)[[1]][1]
-    output_file <- paste0("analysis/results/", file_name, "_fit.rds")
+    file_name <- strsplit(file_name, split=".", fixed=TRUE)[[1]][1]
+    var_suffix <- if (grepl("_var", obs_file) && grepl("_var", seq_file)) "_var" else ""
+    output_file <- paste0("analysis/results/", file_name, var_suffix, "_fit.rds")
   }
 
   if (!dir.exists("analysis/results")){
@@ -170,7 +171,7 @@ run_analysis <- function(obs_file, seq_file, model_file, output_file = NA, aggre
     }
     file.remove(output_file)
   }
-    
+
 
   # Prepare data
   if (aggregated) {
@@ -209,11 +210,14 @@ if (length(args) >= 3) {
   output_file <- if (length(args) >= 4) args[4] else NA
   aggregated <- if (length(args) >= 5) as.logical(args[5]) else TRUE
 
+  if (output_file == "NA") {
+    output_file <- NA
+  }
+
   fit <- run_analysis(
     obs_file = obs_file,
     seq_file = seq_file,
     model_file = model_file,
-    output_file = output_file,
     aggregated = aggregated
   )
 }

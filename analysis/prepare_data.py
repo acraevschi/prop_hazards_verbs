@@ -204,7 +204,7 @@ def prepare_aggregated_markov_data(df, date_col="date"):
         group = group.sort_values(date_col).reset_index(drop=True)
 
         # require at least 2 aggregated timepoints for a transition to occur
-        if len(group) < 1:
+        if len(group) < 2:
             continue
 
         # we'll create a sequence even if length 1 (useful)
@@ -277,17 +277,188 @@ def prepare_aggregated_markov_data(df, date_col="date"):
     return obs_df, seq_df, variety_map, corpus_map
 
 
+def prepare_aggregated_markov_data_variety(df, date_col="date"):
+    """
+    Input df: token-level rows with at least the columns:
+      lemma_id, principal_part, date, variety, corpus,
+      vowel_alternation, cons_alternation,
+      form_freq_per_1000, lemma_freq_per_1000
+
+    Output: obs_df (aggregated rows: one row per lemma x part x date),
+            seq_df (sequence metadata; one row per lemma x part),
+            variety_map, corpus_map
+    """
+
+    df = df.copy()
+
+    # 1) map states (can be done once on the whole dataframe)
+    def map_state(vowel_alt, cons_alt):
+        if vowel_alt == "no" and cons_alt == "no":
+            return 1
+        elif vowel_alt == "yes" and cons_alt == "no":
+            return 2
+        elif vowel_alt == "no" and cons_alt == "yes":
+            return 3
+        elif vowel_alt == "yes" and cons_alt == "yes":
+            return 4
+        else:
+            return np.nan
+
+    df["state"] = df.apply(
+        lambda x: map_state(x["vowel_alternation"], x["cons_alternation"]), axis=1
+    )
+
+    all_obs = []
+    all_seqs = []
+    global_seq_id = 0
+
+    # Process each variety separately
+    for variety_name, variety_df in df.groupby("variety"):
+        # 2) aggregate to lemma x principal_part x date within the variety
+        agg = (
+            variety_df.groupby(["lemma_id", "principal_part", date_col])
+            .agg(
+                n_total=("state", "size"),
+                n1=("state", lambda s: (s == 1).sum()),
+                n2=("state", lambda s: (s == 2).sum()),
+                n3=("state", lambda s: (s == 3).sum()),
+                n4=("state", lambda s: (s == 4).sum()),
+                avg_form_freq=("form_freq_per_1000", "mean"),
+                avg_lemma_freq=("lemma_freq_per_1000", "mean"),
+                corpus_mode=(
+                    "corpus",
+                    lambda x: x.mode().iloc[0] if len(x.mode()) > 0 else np.nan,
+                ),
+            )
+            .reset_index()
+        )
+
+        # 3) lemma-level bipartite proportion per date within the variety
+        lemma_bip = (
+            variety_df.assign(is_bipartite=(variety_df["state"] == 4).astype(int))
+            .groupby(["lemma_id", date_col])["is_bipartite"]
+            .agg(n_bipartite="sum", n_total="count")
+            .reset_index()
+        )
+        lemma_bip["prop_bipartite"] = lemma_bip["n_bipartite"] / lemma_bip["n_total"]
+
+        agg = agg.merge(
+            lemma_bip[["lemma_id", date_col, "prop_bipartite"]],
+            on=["lemma_id", date_col],
+            how="left",
+        )
+        agg["prop_bipartite"] = agg["prop_bipartite"].fillna(0.0)
+
+        # 4) build sequences per (lemma_id, principal_part) within the variety
+        sequences = []
+        rows = []
+
+        agg = agg.sort_values(["lemma_id", "principal_part", date_col]).reset_index(
+            drop=True
+        )
+
+        for (lemma_id, principal_part), group in agg.groupby(
+            ["lemma_id", "principal_part"]
+        ):
+            group = group.sort_values(date_col).reset_index(drop=True)
+
+            if len(group) < 2:
+                continue
+
+            global_seq_id += 1
+            for i, row in group.iterrows():
+                rows.append(
+                    {
+                        "seq_id": global_seq_id,
+                        "lemma_id": lemma_id,
+                        "principal_part": principal_part,
+                        "obs_index": i + 1,
+                        "date": row[date_col],
+                        "n1": int(row["n1"]),
+                        "n2": int(row["n2"]),
+                        "n3": int(row["n3"]),
+                        "n4": int(row["n4"]),
+                        "n_total": int(row["n_total"]),
+                        "avg_form_freq": row["avg_form_freq"],
+                        "avg_lemma_freq": row["avg_lemma_freq"],
+                        "prop_bipartite": row["prop_bipartite"],
+                        "variety": variety_name,
+                        "corpus": row["corpus_mode"],
+                    }
+                )
+
+            sequences.append(
+                {
+                    "seq_id": global_seq_id,
+                    "lemma_id": lemma_id,
+                    "principal_part": principal_part,
+                    "n_obs": len(group),
+                }
+            )
+
+        if rows:
+            all_obs.append(pd.DataFrame(rows))
+        if sequences:
+            all_seqs.append(pd.DataFrame(sequences))
+
+    # Concatenate results from all varieties
+    if not all_obs:
+        return pd.DataFrame(), pd.DataFrame(), {}, {}
+
+    obs_df = pd.concat(all_obs, ignore_index=True)
+    seq_df = pd.concat(all_seqs, ignore_index=True)
+
+    # The rest of the processing happens on the combined dataframe
+    # to ensure consistent mappings and calculations.
+
+    # reindex lemma_id to contiguous integers for Stan
+    unique_lemmas = sorted(obs_df["lemma_id"].unique())
+    lemma_id_mapping = {old: new for new, old in enumerate(unique_lemmas, start=1)}
+    obs_df["lemma_id"] = obs_df["lemma_id"].map(lemma_id_mapping)
+    seq_df["lemma_id"] = seq_df["lemma_id"].map(lemma_id_mapping)
+
+    # map variety & corpus to integers (use modes present)
+    varieties = sorted([v for v in obs_df["variety"].dropna().unique()])
+    variety_map = {v: i + 1 for i, v in enumerate(varieties)}
+    corpora = sorted([c for c in obs_df["corpus"].dropna().unique()])
+    corpus_map = {c: i + 1 for i, c in enumerate(corpora)}
+
+    obs_df["variety_code"] = obs_df["variety"].map(variety_map)
+    obs_df["corpus_code"] = obs_df["corpus"].map(corpus_map)
+
+    # 5) compute time intervals (year differences) between aggregated rows in each sequence
+    obs_df = obs_df.sort_values(["seq_id", "obs_index"]).reset_index(drop=True)
+    obs_df["time_interval_to_next"] = np.nan
+    for sid, group in obs_df.groupby("seq_id"):
+        idx = group.index.values
+        dates = group["date"].values.astype(float)
+        if len(dates) >= 2:
+            deltas = np.diff(dates)
+            obs_df.loc[idx[:-1], "time_interval_to_next"] = deltas
+        obs_df.loc[idx[-1], "time_interval_to_next"] = np.nan
+
+    # replace NaN times with 0.0 for storage convenience
+    obs_df["time_interval_to_next"] = obs_df["time_interval_to_next"].fillna(0.0)
+
+    return obs_df, seq_df, variety_map, corpus_map
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
     parser.add_argument("--out_obs", required=True)
     parser.add_argument("--out_seq", required=True)
     parser.add_argument("--aggregated", action="store_true", default=False)
+    parser.add_argument("--by_variety", action="store_true", default=False)
     args = parser.parse_args()
 
     df = pd.read_csv(args.input)
-    if args.aggregated:
+    if args.aggregated and not args.by_variety:
         obs_df, seq_df, variety_map, corpus_map = prepare_aggregated_markov_data(df)
+    elif args.aggregated and args.by_variety:
+        obs_df, seq_df, variety_map, corpus_map = (
+            prepare_aggregated_markov_data_variety(df)
+        )
     else:
         obs_df, seq_df, variety_map, corpus_map = prepare_markov_data(df)
 
