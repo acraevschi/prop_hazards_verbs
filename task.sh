@@ -10,4 +10,4 @@ echo $@
 module load anaconda3
 source activate hmm_irregularity
 
-srun $@
+srun Rscript analysis/run_stan_model.R $@

@@ -207,12 +207,7 @@ if (length(args) >= 3) {
   obs_file <- args[1]
   seq_file <- args[2]
   model_file <- args[3]
-  output_file <- if (length(args) >= 4) args[4] else NA
-  aggregated <- if (length(args) >= 5) as.logical(args[5]) else TRUE
-
-  if (output_file == "NA") {
-    output_file <- NA
-  }
+  aggregated <- if (length(args) >= 4) as.logical(args[4]) else TRUE
 
   fit <- run_analysis(
     obs_file = obs_file,
