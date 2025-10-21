@@ -1,6 +1,6 @@
 functions {
   // Build transition probability matrix P = expm(Q * dt)
-  matrix get_transition_matrix(vector rates, real beta_form, real beta_lemma,
+  matrix get_transition_matrix(vector log_rates, real beta_form, real beta_lemma,
                                real beta_bipartite,
                                real form_freq, real lemma_freq,
                                real prop_bipartite, real time_interval) {
@@ -11,8 +11,7 @@ functions {
     for (i in 1:4) {
       for (j in 1:4) {
         if (i != j) {
-          real base = rates[idx];
-          real lr = log(base + 1e-9)
+          real lr = log_rates[idx]
                     + beta_form * form_freq
                     + beta_lemma * lemma_freq
                     + beta_bipartite * prop_bipartite;
@@ -51,7 +50,7 @@ data {
 }
 
 parameters {
-  vector<lower=0>[12] baseline_rates; // off-diagonal base rates (positive)
+  vector[12] log_baseline_rates; // off-diagonal base rates (positive)
   real beta_form;
   real beta_lemma;
   real beta_bipartite;
@@ -63,7 +62,7 @@ parameters {
 
 model {
   // Priors
-  baseline_rates ~ exponential(2.0);
+  log_baseline_rates ~ normal(0, 1);
   beta_form ~ normal(0, 1);
   beta_lemma ~ normal(0, 1);
   beta_bipartite ~ normal(0, 1);
@@ -89,7 +88,7 @@ model {
     for (t in 1:(T_len[m] - 1)) {
       // form_freq, lemma_freq, prop_bipartite at time t are used to form Q
       matrix[4,4] P = get_transition_matrix(
-                        baseline_rates, beta_form, beta_lemma, beta_bipartite,
+                        log_baseline_rates, beta_form, beta_lemma, beta_bipartite,
                         form_freq[m,t], lemma_freq[m,t],
                         prop_bipartite[m,t], time_intervals[m,t]);
 
@@ -130,7 +129,7 @@ generated quantities {
 
     for (t in 1:(T_len[m] - 1)) {
       matrix[4,4] P = get_transition_matrix(
-                        baseline_rates, beta_form, beta_lemma, beta_bipartite,
+                        log_baseline_rates, beta_form, beta_lemma, beta_bipartite,
                         form_freq[m,t], lemma_freq[m,t],
                         prop_bipartite[m,t], time_intervals[m,t]);
 
