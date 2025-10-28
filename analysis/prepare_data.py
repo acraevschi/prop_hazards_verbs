@@ -69,6 +69,7 @@ def prepare_markov_data(df):
                     "lemma_freq": row.get("lemma_freq_per_1000", np.nan),
                     "variety": variety_map[row["variety"]],
                     "corpus": corpus_map[row["corpus"]],
+                    "modern_lemma_count": row.get("modern_lemma_count", np.nan),
                 }
             )
 
@@ -158,6 +159,7 @@ def prepare_aggregated_markov_data(df, date_col="date"):
             n4=("state", lambda s: (s == 4).sum()),
             avg_form_freq=("form_freq_per_1000", "mean"),
             avg_lemma_freq=("lemma_freq_per_1000", "mean"),
+            modern_lemma_count=("modern_lemma_count", "mean"),
             # pick modal variety/corpus within this cell (use first if tie)
             variety_mode=(
                 "variety",
@@ -227,6 +229,7 @@ def prepare_aggregated_markov_data(df, date_col="date"):
                     "prop_bipartite": row["prop_bipartite"],
                     "variety": row["variety_mode"],
                     "corpus": row["corpus_mode"],
+                    "modern_lemma_count": row.get("modern_lemma_count", np.nan),
                 }
             )
 
@@ -325,6 +328,7 @@ def prepare_aggregated_markov_data_variety(df, date_col="date"):
                 n4=("state", lambda s: (s == 4).sum()),
                 avg_form_freq=("form_freq_per_1000", "mean"),
                 avg_lemma_freq=("lemma_freq_per_1000", "mean"),
+                modern_lemma_count=("modern_lemma_count", "mean"),
                 corpus_mode=(
                     "corpus",
                     lambda x: x.mode().iloc[0] if len(x.mode()) > 0 else np.nan,
@@ -384,6 +388,7 @@ def prepare_aggregated_markov_data_variety(df, date_col="date"):
                         "prop_bipartite": row["prop_bipartite"],
                         "variety": variety_name,
                         "corpus": row["corpus_mode"],
+                        "modern_lemma_count": row.get("modern_lemma_count", np.nan),
                     }
                 )
 
