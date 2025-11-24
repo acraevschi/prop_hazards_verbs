@@ -1,9 +1,8 @@
-library(readr)
 library(dplyr)
 library(brms)
 
 
-model_data <- read_csv("analysis/pauls_principle_dataset.csv")
+model_data <- read.csv("analysis/pauls_principle_dataset.csv")
 model_data <- unique(model_data)
 
 ####### MODEL ########
@@ -36,4 +35,3 @@ print(summary(hierarchical_model_fit))
 # 4. Plot the fixed effects (like 'is_bipartite') and the spline
 # ------------------------------------
 plot(conditional_effects(hierarchical_model_fit), points = TRUE)
-
