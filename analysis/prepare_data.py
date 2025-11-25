@@ -2,10 +2,8 @@ import pandas as pd
 import numpy as np
 from data.extract_modern_freqs import get_lemma_frequencies
 
-# 1. CONFIGURATION & DICTIONARIES
+# 1. CONFIGURATION
 # ---------------------------------------------------------
-
-# Lemma standardization mappings
 LEMMA_STANDARDIZATION_MAP = {
     "ziehen": "ziehen",
     "zièhen": "ziehen",
@@ -33,12 +31,10 @@ LEMMA_STANDARDIZATION_MAP = {
 }
 
 EXPLICIT_DIALECT_MAP = {
-    # Upper German / Alemannic
     "Schwaeb": "Upper German",
     "Oschwaeb": "Upper German",
     "oberdeutsch": "Upper German",
     "Els": "Upper German",
-    # Low German
     "niederdeutsch": "Low German",
     "OstND": "Low German",
     "mitteldeutsch, niederdeutsch": "Low German",
@@ -46,7 +42,6 @@ EXPLICIT_DIALECT_MAP = {
     "Rip": "Low German",
     "Obs": "Low German",
     "OstF": "Low German",
-    # High German
     "hochdeutsch": "High German",
     "mitteldeutsch": "High German",
     "mitteldeutsch, oberdeutsch": "High German",
@@ -69,90 +64,98 @@ print("Loading data...")
 df = pd.read_csv(INPUT_FILE, sep="\t")
 bipartite_df = pd.read_csv(BIPARTITE_FILE)
 
-
 # 3. STANDARDIZATION
 # ---------------------------------------------------------
-print("Standardizing lemmas and dialects...")
-
-# Apply Lemma Map
-# We use 'get' to return the original if not found, or you can map to NaN to filter
+print("Standardizing...")
 df["lemma_std"] = df["lemma"].apply(
     lambda x: LEMMA_STANDARDIZATION_MAP.get(x.strip(), np.nan)
 )
-
-# Apply Dialect Map
 df.dropna(subset=["dialect/place"], inplace=True)
 df["dialect"] = df["dialect/place"].apply(
     lambda x: EXPLICIT_DIALECT_MAP.get(x.strip(), np.nan)
 )
-
-# Drop rows where lemma or dialect could not be standardized
-initial_count = len(df)
 df = df.dropna(subset=["lemma_std", "dialect"])
-print(f"Filtered {initial_count - len(df)} rows due to unmapped lemmas or dialects.")
 
-# 4. CODING 'HAS_LEVELLED' (THE RESPONSE VARIABLE)
+# 4. RESTRUCTURING DATA (Wide to Long)
 # ---------------------------------------------------------
-print("Coding leveling status...")
+print("Splitting into element-wise observations (C vs V)...")
 
+observations = []
 
-# Logic: If EITHER Consonant (C) or Vowel (V) is 'innovative', the form has suffered leveling.
-def determine_leveling(row):
-    # Check for 'innovative' string in coding columns (case insensitive)
-    c_innovative = str(row.get("C.coding", "")).strip().lower() == "innovative"
-    v_innovative = str(row.get("V.coding", "")).strip().lower() == "innovative"
+for idx, row in df.iterrows():
+    # Common metadata for this form
+    base_data = {
+        "lemma_std": row["lemma_std"],
+        "lemma": row["lemma"],  # needed for concatenation
+        "dialect": row["dialect"],
+        "date": row["date"],
+        "form": row["form"],
+        "inflcat": row["inflcat"],
+    }
 
-    if c_innovative or v_innovative:
-        return 1
-    return 0
+    # -- Handle Consonant Observation --
+    # Only create a row if there is coding present for C
+    if pd.notna(row.get("C.coding")) and str(row.get("C.coding")).strip() != "":
+        c_data = base_data.copy()
+        c_data["element_type"] = "Consonant"
+        c_data["has_levelled"] = (
+            1 if str(row["C.coding"]).strip().lower() == "innovative" else 0
+        )
+        observations.append(c_data)
 
+    # -- Handle Vowel Observation --
+    # Only create a row if there is coding present for V
+    if pd.notna(row.get("V.coding")) and str(row.get("V.coding")).strip() != "":
+        v_data = base_data.copy()
+        v_data["element_type"] = "Vowel"
+        v_data["has_levelled"] = (
+            1 if str(row["V.coding"]).strip().lower() == "innovative" else 0
+        )
+        observations.append(v_data)
 
-df["has_levelled"] = df.apply(determine_leveling, axis=1)
+# Create new long-format dataframe
+long_df = pd.DataFrame(observations)
 
-# 5. FREQUENCY CALCULATION (log_freq)
+# 5. FREQUENCY & BIPARTITE MERGE
 # ---------------------------------------------------------
-print("Calculating log frequency...")
+print("Merging frequency and bipartite stats...")
 
-lemma_freq_dict = get_lemma_frequencies(list(df["lemma_std"].unique()))
-
-# to account for 0 modern freq
+# Frequency
+lemma_freq_dict = get_lemma_frequencies(list(long_df["lemma_std"].unique()))
+# Handle 0 freq
 for lemma in lemma_freq_dict.keys():
     if lemma_freq_dict[lemma] == 0:
         lemma_freq_dict[lemma] = 1
 
-df["raw_freq"] = df["lemma_std"].map(lemma_freq_dict).astype(int)
+long_df["raw_freq"] = long_df["lemma_std"].map(lemma_freq_dict).astype(int)
+long_df["log_freq"] = np.log(long_df["raw_freq"])
 
-# Apply Log transformation: log(freq)
-df["log_freq"] = np.log(df["raw_freq"])
+# Merge Bipartite (Left merge to keep all observations)
+long_df = long_df.merge(
+    bipartite_df[["lemma", "is_bipartite"]],
+    left_on="lemma",
+    right_on="lemma",
+    how="left",
+)
 
-# 6. MERGE BIPARTITE PREDICTORS
+# 6. FINAL CLEANUP
 # ---------------------------------------------------------
-print("Merging bipartite data...")
+long_df["date"] = pd.to_numeric(long_df["date"], errors="coerce")
+long_df = long_df.dropna(subset=["date", "has_levelled"])
 
-# Merge left to keep all observations in the main data
-df = df.merge(bipartite_df[["lemma", "is_bipartite"]], on="lemma", how="left")
-
-# 7. FINAL CLEANUP AND EXPORT
-# ---------------------------------------------------------
-print("Finalizing dataset...")
-
-# Ensure Date is numeric
-df["date"] = pd.to_numeric(df["date"], errors="coerce")
-df = df.dropna(subset=["date"])  # Drop rows with invalid dates
-
-# Select only columns needed for the brms model
+# Columns for R
 model_columns = [
-    "has_levelled",
-    "is_bipartite",
+    "has_levelled",  # The outcome (0 or 1)
+    "element_type",  # The predictor (Consonant or Vowel) - NEW
+    "is_bipartite",  # Paradigm feature
     "dialect",
     "date",
     "lemma_std",
+    "form",  # Included for inspection
+    "inflcat",  # Included for random effects or inspection
     "log_freq",
 ]
 
-final_df = df[model_columns]
-
-# Save
+final_df = long_df[model_columns]
 final_df.to_csv(OUTPUT_FILE, index=False)
-print(f"Success! Dataset saved to {OUTPUT_FILE} with {len(final_df)} rows.")
-print(final_df.head())
+print(f"Exported {len(final_df)} observations to {OUTPUT_FILE}")
