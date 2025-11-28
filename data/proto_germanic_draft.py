@@ -7,12 +7,15 @@ import lxml.html
 import re
 import pandas as pd
 
+# Taken from previous study, has all PG strong verbs listed
 with open("data/cognates_germanic.json", encoding="UTF-8") as f:
     cognates = json.load(f)
 
+# Needed to extract the list of verb lemmas we have
 with open("data/lemmas/enhg_mapping.json", encoding="UTF-8") as f:
     enhg_lemmas = json.load(f)
 
+# Current corpus data
 corpus_df = pd.read_csv("data/combined_normalized_corpus.csv")
 
 high_german_dict = dict()
@@ -39,6 +42,7 @@ for hg_lemma, proto_lemma in tqdm(high_german_dict.items(), desc="Extracting PG 
         resp.raise_for_status()
         doc = lxml.html.fromstring(resp.content)
         # primary XPath provided; try with and without tbody
+        ### XPath for 3rd Person Plural Past
         nodes = doc.xpath(
             '//*[@id="mw-content-text"]/div[1]/div[6]/table/tbody/tr[20]/td[1]/span/a'
         )
@@ -99,7 +103,7 @@ def analyze_pgmc_pair(inf, past_pl):
 
     # B. Consonants (Verner's Law)
 
-    # --- Find LAST SINGLE Consonant ---
+    # --- Find last consonant ---
     c_inf_match = re.search(r"([^aeiouāēīōū])$", root_inf)
     c_past_match = re.search(r"([^aeiouāēīōū])$", root_past)
 
@@ -159,7 +163,6 @@ for lemma in mappable_lemmas:
         pgmc_data[lemma]["lemma_id"] = None
 
 
-# Convert pgmc_data dict to DataFrame for easy merging
 # Convert pgmc_data dict to DataFrame
 pgmc_df = pd.DataFrame.from_dict(pgmc_data, orient="index")
 
