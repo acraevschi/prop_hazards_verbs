@@ -104,7 +104,7 @@ def main(args):
 
     data.dropna(subset=["lemma_id", "principal_part", "date", "variety"], inplace=True)
     data.drop(
-        ["language-region", "infl", "inflClass", "specific_dating", "time"],
+        ["language-region", "specific_dating", "time", "grapho"],
         axis=1,
         inplace=True,
     )
