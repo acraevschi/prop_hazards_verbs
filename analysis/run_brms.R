@@ -1,6 +1,8 @@
 library(dplyr)
 library(tidyr)
 library(brms)
+library(cmdstanr)
+
 
 # 1. Load Data
 # ------------------------------------
@@ -35,7 +37,7 @@ model_data <- raw_data %>%
     element_type = as.factor(element_type),
     is_bipartite = as.factor(is_bipartite),
     variety = as.factor(variety),
-    lemma_std = as.factor(lemma), # Assuming 'lemma' column is the standard ID
+    lemma_std = as.factor(lemma_id), # Assuming 'lemma' column is the standard ID
     id = as.factor(id),           # Document ID
     std_infl = as.factor(std_infl),
     
@@ -47,9 +49,12 @@ model_data <- raw_data %>%
   select(lemma_std, date, id, variety, std_infl, 
          log_freq, is_bipartite, element_type, has_levelled)
 
+
+model_data <- unique(model_data)
+
+
 # 3. The "Mega-Model" Definition
 # ------------------------------------
-# Synthesizing all previous models + Supervisor's constraints:
 # 1. Interaction date * element_type -> s(date, by = element_type)
 # 2. Interaction date * is_bipartite -> s(date, by = is_bipartite)
 # 3. Interaction date * freq         -> t2(date, log_freq)
@@ -64,28 +69,21 @@ comprehensive_formula <- bf(
     # --- Fixed Effects & Interactions ---
     is_bipartite + 
     element_type +
-    
     # Smooths for Time Interactions
     # How the leveling probability changes over time, specific to Vowel vs Consonant
     s(date, by = element_type) + 
-    
     # How the leveling probability changes over time, specific to Bipartite vs Non-Bipartite
     s(date, by = is_bipartite) +
-    
     # Interaction between Time and Frequency (Tensor product smooth)
     # Allows the effect of frequency to vary over time (e.g., freq effects might get stronger later)
     t2(date, log_freq) +
-    
     # --- Random Effects ---
     # 1. Document ID as random intercept
     (1 | id) +
-    
     # 2. Variety/Dialect as random intercept
     (1 | variety) +
-    
     # 3. Inflectional Context as random intercept
     (1 | std_infl) +
-    
     # 4. Lemma Random Structure
     #    Intercept + Slopes for Element Type and Bipartiteness.
     #    This accounts for specific verbs being more prone to vowel/consonant leveling
@@ -102,11 +100,14 @@ comprehensive_formula <- bf(
 comprehensive_fit <- brm(
   formula = comprehensive_formula,
   data = model_data,
-  chains = 4,
+  chains = 3,
   iter = 4000,           # Increased iterations for complex random effects
-  warmup = 2000,
-  cores = 4,
-  backend = "rstan",     # or "cmdstanr" if installed for speed
-  control = list(adapt_delta = 0.99, max_treedepth = 12), # Stricter controls for convergence
+  warmup = 2500,
+  cores = 3,
+  threads = threading(2),
+  backend = "cmdstanr",     # or "cmdstanr" if installed for speed
+  control = list(adapt_delta = 0.99, max_treedepth=12), # Stricter controls for convergence
   file = "analysis/models/comprehensive_brms_fit"
 )
+
+
