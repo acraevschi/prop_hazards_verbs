@@ -8,6 +8,28 @@ library(cmdstanr)
 # ------------------------------------
 raw_data <- read.csv("data/coded_output.csv", stringsAsFactors = FALSE)
 
+# Create a lookup for a representative lemma (shortest string) per lemma_id
+lemma_lookup <- raw_data %>%
+  filter(!is.na(lemma), lemma != "") %>%
+  group_by(lemma_id) %>%
+  slice_min(nchar(lemma), n = 1, with_ties = FALSE) %>%
+  select(lemma_id, lemma_rep = lemma) %>%
+  ungroup()
+
+raw_data <- raw_data %>%
+  left_join(lemma_lookup, by = "lemma_id") %>%
+  mutate(lemma = lemma_rep) %>%
+  select(-lemma_rep)
+
+model_data <- raw_data %>%
+  # A. Filter: Keep only rows where is_bipartite is coded (not NA)
+  filter(!is.na(is_bipartite)) %>%
+  
+  # B. Filter: Drop rows where BOTH leveling indicators are missing
+  #    (Keep row if at least one of them has a value)
+  filter(!is.na(is_leveled_vowel_pres) | !is.na(is_leveled_cons_pres))
+
+
 # 2. Preprocessing Pipeline
 # ------------------------------------
 model_data <- raw_data %>%
@@ -38,6 +60,7 @@ model_data <- raw_data %>%
     is_bipartite = as.factor(is_bipartite),
     variety = as.factor(variety),
     lemma_std = as.factor(lemma_id), # Assuming 'lemma' column is the standard ID
+
     id = as.factor(id),           # Document ID
     std_infl = as.factor(std_infl),
     
@@ -46,12 +69,10 @@ model_data <- raw_data %>%
   ) %>%
   
   # Select final columns for cleanliness
-  select(lemma_std, date, id, variety, std_infl, 
+  select(lemma, lemma_std, date, id, variety, std_infl, 
          log_freq, is_bipartite, element_type, has_levelled)
 
-
 model_data <- unique(model_data)
-
 
 # 3. The "Mega-Model" Definition
 # ------------------------------------
@@ -100,10 +121,10 @@ comprehensive_formula <- bf(
 comprehensive_fit <- brm(
   formula = comprehensive_formula,
   data = model_data,
-  chains = 3,
-  iter = 4000,           # Increased iterations for complex random effects
-  warmup = 2500,
-  cores = 3,
+  chains = 4,
+  iter = 3000,           # Increased iterations for complex random effects
+  warmup = 1750,
+  cores = 4,
   threads = threading(2),
   backend = "cmdstanr",     # or "cmdstanr" if installed for speed
   control = list(adapt_delta = 0.99, max_treedepth=12), # Stricter controls for convergence

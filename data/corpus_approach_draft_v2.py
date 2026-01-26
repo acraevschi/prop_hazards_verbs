@@ -106,8 +106,9 @@ DIGRAPH_IPA = {
 EQUIV_SETS = [
     {"v", "f", "u"},  # u/v/f interchange
     {"p", "b"},  # Devoicing
-    {"t", "d"},  # Devoicing
-    {"k", "g", "c", "q"},  # Devoicing / Spelling
+    # {"t", "d"},  # Devoicing
+    {"h", "χ"},
+    {"k", "g", "c", "q", "ng", "nk"},  # Devoicing / Spelling
     {"s", "z", "ʦ", "ʃ", "ʒ", "ss", "ß"},  # Sibilants
 ]
 
@@ -157,6 +158,40 @@ SUFFIXES = [
     "n",
     "d",
 ]
+
+VALID_ONSETS = {
+    "bl",
+    "br",
+    "cl",
+    "cr",
+    "dr",
+    "fl",
+    "fr",
+    "gl",
+    "gn",
+    "gr",
+    "kl",
+    "kn",
+    "kr",
+    "pf",
+    "ph",
+    "pl",
+    "pr",
+    "qu",
+    "sch",
+    "sl",
+    "sm",
+    "sn",
+    "sp",
+    "st",
+    "sw",
+    "tr",
+    "tw",
+    "vl",
+    "vr",
+    "wr",
+    "zw",
+}
 
 
 def load_sound_changes(filepath="data/vowel_changes.csv"):
@@ -299,47 +334,105 @@ def clean_form(form):
     return f
 
 
-def extract_root_structure(form, corpus="MHG", lemma=None):
+def extract_root_structure(df, form, corpus="MHG", lemma_id=None):
     """
-    Robust extraction that protects root consonants and handles 'ge-' lemmas.
+    Robust extraction with Phonotactic Guards to prevent root-eating.
     """
     f = clean_form(form)
     if not f:
         return pd.NA, pd.NA
 
-    # --- 1. SMART PREFIX STRIPPING ---
-    prefix_list = list(PREFIXES.get(corpus, PREFIXES["MHG"]))  # Make a copy
+    # --- 1. SMART PREFIX STRIPPING (PHONOTACTIC AWARE) ---
+    prefix_list = list(PREFIXES.get(corpus, PREFIXES["MHG"]))
 
-    # Safety Check: If the lemma ITSELF starts with 'ge' (e.g., geben, gewinnen),
-    # we should NOT strip 'ge' from the form unless it appears twice (ge-geben).
-    lemma_starts_with_ge = False
-    if lemma and str(lemma).lower().startswith("ge"):
-        lemma_starts_with_ge = True
-        if "ge" in prefix_list:
-            prefix_list.remove("ge")
-
-    # Special handling for Participles of ge-roots (e.g., 'gegeben')
-    # If we removed 'ge' from the list, 'gegeben' won't strip. We must manually handle the first 'ge'.
-    if lemma_starts_with_ge and f.startswith("gege"):
-        f = f[2:]  # Strip the inflectional 'ge-', leave the radical 'ge-'
-
+    # We sort prefixes by length so we try longest matches first
+    # But we iterate repeatedly to handle recursive prefixes (e.g. vor-ge-schrieben)
     clean_stem = f
-    match_found = True
-    while match_found:
+
+    # Safety loop limit to prevent infinite loops (though unlikely)
+    for _ in range(3):
         match_found = False
         for p in prefix_list:
             if clean_stem.startswith(p):
-                # LOOKAHEAD SAFETY:
-                # Only strip if the remainder still looks like a valid root (has a vowel).
-                remainder = clean_stem[len(p) :]
+                candidate = clean_stem[len(p) :]
 
-                # Check for vowels in remainder
-                if any(v in remainder for v in VOWELS):
-                    clean_stem = remainder
-                    match_found = True
-                    break
+                # --- PHONOTACTIC GUARD ---
+                # Check 1: Vowel Existence
+                # If remainder has no vowels, we definitely stripped the nucleus. Stop.
+                if not any(v in candidate for v in VOWELS):
+                    continue
 
-    # --- 2. EXTRACT NUCLEUS & RAW CODA ---
+                # Check 2: Onset Validity
+                # Extract the onset (consonants before the first vowel)
+                # We use the normalized vowel set for regex matching
+                v_pattern = f"[{''.join(VOWELS)}]"
+                onset_match = re.search(f"^([^{''.join(VOWELS)}]+)", candidate)
+
+                if onset_match:
+                    onset = onset_match.group(1)
+
+                    # Guard A: Geminates (e.g., 'zz', 'ss', 'mm')
+                    # Roots never start with geminates. If we see one, we stripped 'ge' from 'gessen'.
+                    if len(onset) > 1 and onset[0] == onset[1]:
+                        continue  # Invalid strip
+
+                    # Guard B: Illegal Clusters (e.g., 'lt', 'rg', 'nc')
+                    # If onset is a cluster (>1 char) and NOT in our whitelist, it's invalid.
+                    # Note: 'sch' is 3 chars, but in VALID_ONSETS. 'lt' is not.
+                    if len(onset) > 1 and onset not in VALID_ONSETS:
+                        # Edge case: 'sch' might be parsed as 's', 'c', 'h' if not careful
+                        # But our onset is raw string.
+                        # We must check if the *start* of the onset is a valid digraph/trigraph
+                        # or if the whole onset is allowed.
+
+                        # Simple check: Is the specific cluster in the allowed list?
+                        # Or does it start with a valid 3-char (sch) or 2-char onset?
+                        is_valid_cluster = False
+                        if onset in VALID_ONSETS:
+                            is_valid_cluster = True
+                        else:
+                            # Check prefixes of the onset (e.g. 'sch' in 'schri...')
+                            # Actually, regex `^[^vowels]+` grabs all initial consonants.
+                            # 'schreiben' -> onset 'schr'. 'schr' not in list.
+                            # But 'schr' starts with 'sch' (valid) + 'r'.
+                            # German allows complex onsets like 'schr', 'spr', 'str'.
+                            # Let's simplify:
+                            # If it starts with an illegal PAIR, reject.
+                            # Illegal pairs: 'lt', 'rg', 'nt', 'mp'.
+                            # Legal starts: valid singletons or VALID_ONSETS.
+                            pass  # Too complex for simple logic?
+
+                        # REVISED GUARD B:
+                        # Just block specific known "Coda" clusters that appear after 'ge-'/'be-' stripping
+                        # Common culprits: lt (gelten), rg (bergen), rc (borc), rb (sterben)
+                        if onset.startswith(
+                            (
+                                "lt",
+                                "rg",
+                                "rc",
+                                "rb",
+                                "lz",
+                                "lm",
+                                "rm",
+                                "rn",
+                                "ld",
+                                "nd",
+                                "ng",
+                                "nk",
+                                "nt",
+                            )
+                        ):
+                            continue
+
+                # If we passed guards, accept the strip
+                clean_stem = candidate
+                match_found = True
+                break  # Restart loop to check for next prefix (e.g. vor-ge-)
+
+        if not match_found:
+            break
+
+    # --- 2. EXTRACT NUCLEUS ---
     v_pattern = f"[{''.join(VOWELS)}]+"
     match = re.search(f"({v_pattern})", clean_stem)
 
@@ -349,32 +442,39 @@ def extract_root_structure(form, corpus="MHG", lemma=None):
     nucleus = match.group(1)
     post_nucleus = clean_stem[match.end() :]
 
-    # Capture immediate consonant cluster
+    # --- 3. EXTRACT RAW CODA ---
     coda_match = re.search(f"^([^{''.join(VOWELS)}]+)", post_nucleus)
     final_coda = coda_match.group(1) if coda_match else ""
 
-    # --- 3. PROTECTED SUFFIX STRIPPING ---
-    # We iterate through suffixes, but we apply the "Non-Empty" Constraint
+    # --- 4. PROTECTED SUFFIX STRIPPING ---
     sorted_suffixes = sorted(SUFFIXES, key=len, reverse=True)
 
     for s in sorted_suffixes:
         if final_coda.endswith(s):
-            # CONSTRAINT: Only strip if we are left with at least 1 consonant.
-            # Exception: If the suffix is distinct from the root (hard to know without dict),
-            # strictly speaking, for Strong Verbs, the root usually ends in a consonant.
-            # We assume if stripping 's' leaves 0 chars, 's' was likely the root consonant (e.g. 'lei-d-en' -> 'd').
+            # Constraint: Don't strip if it leaves the coda empty
+            # UNLESS the remaining stem implies a vowel-final root (like 'schrien').
+            # Heuristic: If stripping 'n' leaves empty, allow it ONLY if nucleus is a diphthong/long vowel?
+            # Safer: Just STRICTLY enforce "Root must have coda" for strong verbs?
+            # Most strong verbs end in C. Exceptions: gan, stan, tuon, schrien, spien.
+            # If we enforce len > 0, we break 'schrien'.
+            # If we allow len == 0, we might break 'geschehen' (h -> empty).
+
+            # SPECIFIC FIX FOR 'GESCHEHEN' (Coda 'h') vs Suffix 'en'
+            # 'h' does not end with 'en'. So 'h' is safe.
+            # The previous issue was likely 'schehen' -> 'h' -> interpreted as empty?
 
             if len(final_coda) > len(s):
                 final_coda = final_coda[: -len(s)]
-                break  # We usually only strip the longest matching tail (e.g. 'est')
-            else:
-                # The suffix covers the entire Coda (e.g. 'gap' -> coda 'p', suffix 'p' not in list usually,
-                # but 'leiden' -> coda 'd', suffix 'd' IS in list).
-                # We do NOT strip. We assume this is the root.
+                break
+            elif len(final_coda) == len(s):
+                # Only strip entire coda if it is exactly 'n' or 'en' (common infinitive markers on vowel roots)
+                if s in ["n", "en"]:
+                    final_coda = ""
+                    break
+                # Otherwise protect it (e.g. 't' in 'gilt')
                 pass
 
-    # --- 4. FINAL CLEANUP ---
-    # Digraph normalization
+    # --- 5. CLEANUP ---
     for k, v in DIGRAPH_IPA.items():
         final_coda = final_coda.replace(k, v)
         nucleus = nucleus.replace(k, v)
@@ -402,19 +502,19 @@ def step_1_preprocessing(df):
     # 'geben' (some other context) might differ if we use lemma info.
     # However, for speed, we can group by (Form, Corpus, Lemma).
 
-    unique_contexts = df[["norm", "corpus", "lemma"]].drop_duplicates()
+    unique_contexts = df[["norm", "corpus", "lemma_id"]].drop_duplicates()
 
     print(f"   Extracting roots for {len(unique_contexts)} unique form contexts...")
 
     results = []
     for _, row in tqdm(unique_contexts.iterrows(), total=len(unique_contexts)):
         # PASS THE LEMMA HERE
-        v, c = extract_root_structure(row["norm"], row["corpus"], row["lemma"])
+        v, c = extract_root_structure(df, row["norm"], row["corpus"], row["lemma_id"])
         results.append(
             {
                 "norm": row["norm"],
                 "corpus": row["corpus"],
-                "lemma": row["lemma"],
+                "lemma_id": row["lemma_id"],
                 "extracted_vowel": v,
                 "extracted_coda": c,
             }
@@ -422,24 +522,23 @@ def step_1_preprocessing(df):
 
     # Map back
     res_df = pd.DataFrame(results)
-    df = df.merge(res_df, on=["norm", "corpus", "lemma"], how="left")
+    df = df.merge(res_df, on=["norm", "corpus", "lemma_id"], how="left")
 
     return df
 
 
 def step_2_establish_baseline(df):
     """
-    Establishes the 'Start State' (MHG Pre-1150).
-    Now captures Present, PastSg, and PastPl anchors to check for pre-existing alternations.
+    Establishes the 'Start State' (MHG Pre-1200).
+    Calculates pairwise complexity (Ablaut/GW) between ALL three slots.
     """
-    print("\n--- Step 2: Establishing Diachronic Baseline (Pre-1150) ---")
+    print("\n--- Step 2: Establishing Diachronic Baseline (Pre-1200) ---")
 
     # Filter for Baseline Candidates
     baseline_df = df[
-        (df["date"] <= 1150) & (df["corpus"] == "MHG") & (df["extracted_vowel"].notna())
+        (df["date"] <= 1200) & (df["corpus"] == "MHG") & (df["extracted_vowel"].notna())
     ].copy()
 
-    # We need anchors for ALL three slots to check alternations
     # Group by Lemma+Variety+Infl to get the mode
     anchors = (
         baseline_df.groupby(["lemma_id", "variety", "std_infl"])[
@@ -449,39 +548,93 @@ def step_2_establish_baseline(df):
         .reset_index()
     )
 
-    # Pivot to get one row per Lemma+Variety with columns for each slot
-    # pivot_table might be messy with strings, so we do a manual unstack
+    # Pivot to get one row per Lemma+Variety
     anchors_pivoted = anchors.pivot_table(
         index=["lemma_id", "variety"],
         columns="std_infl",
         values=["extracted_vowel", "extracted_coda"],
-        aggfunc="first",  # Should be unique per group already
+        aggfunc="first",
     )
 
-    # Flatten MultiIndex columns (e.g., ('extracted_vowel', 'Pres') -> 'anchor_vowel_pres')
+    # Flatten MultiIndex columns
     anchors_pivoted.columns = [
         f"anchor_{x.split('_')[1]}_{y.lower()}" for x, y in anchors_pivoted.columns
     ]
-
     anchors_pivoted = anchors_pivoted.reset_index()
 
-    # Calculate Complexity (Bipartite) for the Past Tense
-    # We do this here so it's ready for the regression model later
-    def calc_bipartite(row):
-        # We need Sg and Pl to judge Bipartite
-        sg_v, sg_c = row.get("anchor_vowel_pastsg"), row.get("anchor_coda_pastsg")
-        pl_v, pl_c = row.get("anchor_vowel_pastpl"), row.get("anchor_coda_pastpl")
+    # --- NEW LOGIC: Calculate Pairwise Distinctions ---
 
-        if pd.isna(sg_v) or pd.isna(pl_v):
-            return pd.NA
+    def check_alternation(row, slot1, slot2):
+        """
+        Returns (has_ablaut, has_gw) for two specific slots.
+        """
+        v1 = row.get(f"anchor_vowel_{slot1}")
+        c1 = row.get(f"anchor_coda_{slot1}")
+        v2 = row.get(f"anchor_vowel_{slot2}")
+        c2 = row.get(f"anchor_coda_{slot2}")
 
-        has_ablaut = sg_v != pl_v
-        # GW exists if consonants differ AND are not just spelling variants
-        has_gw = (sg_c != pl_c) and (not are_cons_equivalent(sg_c, pl_c))
+        # 1. Null Check
+        if pd.isna(v1) or pd.isna(v2) or pd.isna(c1) or pd.isna(c2):
+            return False, False
 
-        return 1 if (has_ablaut and has_gw) else 0
+        # Ablaut Check (Simple inequality)
+        has_ablaut = v1 != v2
 
-    anchors_pivoted["is_bipartite"] = anchors_pivoted.apply(calc_bipartite, axis=1)
+        # 2. GW Check (With Empty String Protection)
+        # Ensure we are working with strings
+        s1 = str(c1).strip()
+        s2 = str(c2).strip()
+
+        # CRITICAL FIX: If either consonant is empty, we DO NOT count it as GW.
+        # This handles extraction errors or vowel-final roots safely.
+        if not s1 or not s2:
+            has_gw = False
+        else:
+            # Only compare if both exist
+            has_gw = (s1 != s2) and (not are_cons_equivalent(s1, s2))
+
+        return has_ablaut, has_gw
+
+    # Apply calculations for all 3 pairs
+    def analyze_paradigm(row):
+        # 1. Pres vs PastSg
+        ab_pres_sg, gw_pres_sg = check_alternation(row, "pres", "pastsg")
+        # 2. Pres vs PastPl
+        ab_pres_pl, gw_pres_pl = check_alternation(row, "pres", "pastpl")
+        # 3. PastSg vs PastPl (The classic definition)
+        ab_sg_pl, gw_sg_pl = check_alternation(row, "pastsg", "pastpl")
+
+        # Global Bipartite Definition:
+        # If ANY of the three pairs shows BOTH Ablaut AND GW.
+        is_bipartite = (
+            (ab_pres_sg and gw_pres_sg)
+            or (ab_pres_pl and gw_pres_pl)
+            or (ab_sg_pl and gw_sg_pl)
+        )
+
+        return pd.Series(
+            [
+                ab_pres_sg,
+                gw_pres_sg,
+                ab_pres_pl,
+                gw_pres_pl,
+                ab_sg_pl,
+                gw_sg_pl,
+                1 if is_bipartite else 0,
+            ]
+        )
+
+    cols = [
+        "diff_vowel_pres_pastsg",
+        "diff_cons_pres_pastsg",
+        "diff_vowel_pres_pastpl",
+        "diff_cons_pres_pastpl",
+        "diff_vowel_pastsg_pastpl",
+        "diff_cons_pastsg_pastpl",
+        "is_bipartite",
+    ]
+
+    anchors_pivoted[cols] = anchors_pivoted.apply(analyze_paradigm, axis=1)
 
     return anchors_pivoted
 
@@ -546,12 +699,13 @@ def step_3_establish_targets(df):
 
 
 def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_changes.csv"):
-    print("\n--- Step 4: Coding Leveling Events (With Sound Change Filter) ---")
+    print(
+        "\n--- Step 4: Coding Leveling Events (With Historical Alternation Filters) ---"
+    )
 
-    # 1. Load Sound Changes
     sc_dict = load_sound_changes(sc_file)
 
-    # 2. Merge Data
+    # Merge Data
     main = df.merge(baseline_df, on=["lemma_id", "variety"], how="left")
     main = main.merge(target_df, on=["lemma_id", "variety"], how="left")
 
@@ -562,24 +716,39 @@ def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_change
 
     def code_row(row):
         variety = row["variety"]
-        infl = row["std_infl"]
+        infl = row["std_infl"]  # Current observation slot (PastSg or PastPl)
 
-        # --- A. Get Anchors (Start State) ---
-        # Present Anchor (for "Did it become Weak?" check)
+        # Anchors
         anchor_pres_v = row.get("anchor_vowel_pres")
         anchor_pres_c = row.get("anchor_coda_pres")
 
-        # Past Anchors (for "Did it simplify?" check)
         if infl == "PastSg":
             anchor_self_v = row.get("anchor_vowel_pastsg")
             anchor_self_c = row.get("anchor_coda_pastsg")
-            anchor_other_v = row.get("anchor_vowel_pastpl")  # The paradigm mate
+            anchor_other_v = row.get("anchor_vowel_pastpl")
             anchor_other_c = row.get("anchor_coda_pastpl")
+
+            # --- FLAGGING FLAGS (For PastSg) ---
+            # Did I differ from Present?
+            hist_diff_v_pres = row.get("diff_vowel_pres_pastsg")
+            hist_diff_c_pres = row.get("diff_cons_pres_pastsg")
+            # Did I differ from PastPl?
+            hist_diff_v_other = row.get("diff_vowel_pastsg_pastpl")
+            hist_diff_c_other = row.get("diff_cons_pastsg_pastpl")
+
         else:  # PastPl
             anchor_self_v = row.get("anchor_vowel_pastpl")
             anchor_self_c = row.get("anchor_coda_pastpl")
             anchor_other_v = row.get("anchor_vowel_pastsg")
             anchor_other_c = row.get("anchor_coda_pastsg")
+
+            # --- FLAGGING FLAGS (For PastPl) ---
+            # Did I differ from Present?
+            hist_diff_v_pres = row.get("diff_vowel_pres_pastpl")
+            hist_diff_c_pres = row.get("diff_cons_pres_pastpl")
+            # Did I differ from PastSg?
+            hist_diff_v_other = row.get("diff_vowel_pastsg_pastpl")
+            hist_diff_c_other = row.get("diff_cons_pastsg_pastpl")
 
         obs_v = row["extracted_vowel"]
         obs_c = row["extracted_coda"]
@@ -587,35 +756,34 @@ def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_change
         if pd.isna(anchor_self_v):
             return pd.Series([pd.NA] * 4)
 
-        # --- B. The Decision Logic ---
-        def get_status(observed, anchor_self, anchor_compare, target, is_cons):
+        # --- Helper for Comparison ---
+        def get_status(
+            observed,
+            anchor_self,
+            anchor_compare,
+            target,
+            is_cons,
+            historical_diff_exists,
+        ):
             """
-            observed:       The form in text (ENHG)
-            anchor_self:    The MHG origin form
-            anchor_compare: The MHG form we are checking against (Pre-existing alternation check)
-            target:         The ENHG attractor
+            historical_diff_exists: Boolean from Step 2.
+            If False, we return NA because there is no alternation to level.
             """
+            # 1. GATEKEEPER CHECK
+            if historical_diff_exists is False:  # Explicit False check (not NA)
+                return pd.NA
+
             if pd.isna(target) or pd.isna(anchor_compare):
                 return pd.NA
 
-            # Comparison Helper
             def is_equiv(a, b):
                 if is_cons:
                     return are_cons_equivalent(a, b)
                 else:
                     return are_vowels_equivalent(a, b, variety, sc_dict)
 
-            # 1. Existence Check: Did an alternation exist in the first place?
-            # If Self and Compare are functionally equivalent (via sound change or spelling),
-            # there was no conflict to resolve.
-            if is_equiv(anchor_self, anchor_compare):
-                return pd.NA
-
-            # 2. Target Check: Did the Target actually change from the Anchor?
-            # If Target == Anchor (via sound change), then 'leveling' to target is just 'staying same'.
-            # We treat this as valid data, but we must ensure we don't misclassify it.
-            # If target is equiv to anchor, then `is_match_target` and `is_stay_anchor` will BOTH be True.
-            # In that case, we should return NA (Stability), because we can't prove leveling happened.
+            # 2. Target Validity Check
+            # If the Target == Anchor (via sound change), we can't detect leveling.
             if is_equiv(target, anchor_self):
                 return pd.NA
 
@@ -628,22 +796,44 @@ def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_change
             elif is_stay_anchor:
                 return 0  # Resisted
 
-            return pd.NA  # Ambiguous
+            return pd.NA
 
-        # --- C. Scenario 1: Leveling to Present (Weakening) ---
+        # --- Scenario 1: Leveling to Present (Weakening/Analogical leveling) ---
+        # We pass 'hist_diff_v_pres' to ensure we only count leveling if Pres and Past differed historically
         lv_pres = get_status(
-            obs_v, anchor_self_v, anchor_pres_v, row.get("target_vowel_pres"), False
+            obs_v,
+            anchor_self_v,
+            anchor_pres_v,
+            row.get("target_vowel_pres"),
+            False,
+            hist_diff_v_pres,
         )
         lc_pres = get_status(
-            obs_c, anchor_self_c, anchor_pres_c, row.get("target_coda_pres"), True
+            obs_c,
+            anchor_self_c,
+            anchor_pres_c,
+            row.get("target_coda_pres"),
+            True,
+            hist_diff_c_pres,
         )
 
-        # --- D. Scenario 2: Leveling to Past (Internal Simplification) ---
+        # --- Scenario 2: Leveling to Past (Internal Simplification) ---
+        # We pass 'hist_diff_v_other' to ensure we only count leveling if Sg and Pl differed historically
         lv_past = get_status(
-            obs_v, anchor_self_v, anchor_other_v, row.get("target_vowel_past"), False
+            obs_v,
+            anchor_self_v,
+            anchor_other_v,
+            row.get("target_vowel_past"),
+            False,
+            hist_diff_v_other,
         )
         lc_past = get_status(
-            obs_c, anchor_self_c, anchor_other_c, row.get("target_coda_past"), True
+            obs_c,
+            anchor_self_c,
+            anchor_other_c,
+            row.get("target_coda_past"),
+            True,
+            hist_diff_c_other,
         )
 
         return pd.Series([lv_pres, lv_past, lc_pres, lc_past])
@@ -693,7 +883,34 @@ def run_pipeline(
 
 df = run_pipeline()
 
-df_notna = df[
-    ((~df["is_leveled_vowel_pres"].isna()) | (~df["is_leveled_cons_pres"].isna()))
+df_analysis = df[
+    (
+        ((~df["is_leveled_vowel_pres"].isna()) | (~df["is_leveled_cons_pres"].isna()))
+        # | ((~df["is_leveled_cons_past"].isna()) | (~df["is_leveled_vowel_past"].isna()))
+    )
     & (~df["is_bipartite"].isna())
+]
+
+GC_verbs_ids = [
+    # d_tt alternation starts here
+    93,
+    147,
+    353,
+    8,
+    191,
+    # ends here
+    90,
+    111,
+    17,
+    275,
+    320,
+    7,
+    132,
+    19,
+    329,
+    214,
+    342,
+    117,
+    324,
+    143,
 ]
