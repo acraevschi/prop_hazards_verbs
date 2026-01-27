@@ -95,6 +95,8 @@ comprehensive_formula <- bf(
     s(date, by = element_type) + 
     # How the leveling probability changes over time, specific to Bipartite vs Non-Bipartite
     s(date, by = is_bipartite) +
+    # interaction between dialect and time
+    s(date, by = variety) + 
     # Interaction between Time and Frequency (Tensor product smooth)
     # Allows the effect of frequency to vary over time (e.g., freq effects might get stronger later)
     t2(date, log_freq) +
@@ -114,6 +116,39 @@ comprehensive_formula <- bf(
   family = bernoulli()
 )
 
+
+priors <- c(
+  # A. Intercept
+  # Normal(0, 1.5) on the log-odds scale.
+  # This covers a probability range of roughly 0.05 to 0.95, which is realistic 
+  # for leveling (it's rarely 0% or 100% likely across the whole board).
+  prior(normal(0, 1.5), class = "Intercept"),
+  
+  # B. Fixed Effects (Betas)
+  # Normal(0, 1). This assumes that the effect of any single predictor (like bipartite)
+  # is unlikely to shift the log-odds by more than +/- 2 (odds ratios of 0.13 to 7.4).
+  # This constrains the model from finding "exploded" coefficients due to separation.
+  prior(normal(0, 1), class = "b"),
+  
+  # C. Random Effects SDs (Group-level variations)
+  # Exponential(2). This penalizes very large standard deviations.
+  # It assumes most groups (dialects, lemmas) are clustered relatively close to the average,
+  # but allows for exceptions if the data strongly supports it.
+  prior(exponential(2), class = "sd"),
+  
+  # D. Smooths (Splines)
+  # Exponential(2). Controls the "wiggliness" of the time trajectories.
+  # Prevents the curve from overfitting every minor fluctuation in the centuries.
+  prior(exponential(2), class = "sds"),
+  
+  # E. Correlations (for lemma_std random slopes)
+  # LKJ(2). The LKJ prior controls the correlation matrix.
+  # A value of 1 is uniform (any correlation is equally likely).
+  # A value of 2 weakly favors 0 correlation, making the model skeptical of 
+  # perfect correlations (-1 or 1) unless the data screams for it.
+  prior(lkj(2), class = "cor")
+)
+
 # 4. Model Fitting
 # ------------------------------------
 # Note: This is a complex model. Ensure you have sufficient data points per group 
@@ -121,9 +156,10 @@ comprehensive_formula <- bf(
 comprehensive_fit <- brm(
   formula = comprehensive_formula,
   data = model_data,
+  priors = priors,
   chains = 4,
-  iter = 3000,           # Increased iterations for complex random effects
-  warmup = 1750,
+  iter = 3500,           # Increased iterations for complex random effects
+  warmup = 2500,
   cores = 4,
   threads = threading(2),
   backend = "cmdstanr",     # or "cmdstanr" if installed for speed
@@ -132,3 +168,68 @@ comprehensive_fit <- brm(
 )
 
 
+#########################################################################################################
+
+comprehensive_formula_no_slopes <- bf(
+  has_levelled ~ 
+    # --- Fixed Effects & Interactions ---
+    is_bipartite + 
+    element_type +
+    # Smooths for Time Interactions
+    # How the leveling probability changes over time, specific to Vowel vs Consonant
+    s(date, by = element_type) + 
+    # How the leveling probability changes over time, specific to Bipartite vs Non-Bipartite
+    s(date, by = is_bipartite) +
+    # interaction between dialect and time
+    s(date, by = variety) + 
+    # Interaction between Time and Frequency (Tensor product smooth)
+    # Allows the effect of frequency to vary over time (e.g., freq effects might get stronger later)
+    t2(date, log_freq) +
+    # --- Random Effects ---
+    # 1. Document ID as random intercept
+    (1 | id) +
+    # 2. Variety/Dialect as random intercept
+    (1 | variety) +
+    # 3. Inflectional Context as random intercept
+    (1 | std_infl),
+  family = bernoulli()
+)
+
+priors <- c(
+  # A. Intercept
+  # Normal(0, 1.5) on the log-odds scale.
+  # This covers a probability range of roughly 0.05 to 0.95, which is realistic 
+  # for leveling (it's rarely 0% or 100% likely across the whole board).
+  prior(normal(0, 1.5), class = "Intercept"),
+  
+  # B. Fixed Effects (Betas)
+  # Normal(0, 1). This assumes that the effect of any single predictor (like bipartite)
+  # is unlikely to shift the log-odds by more than +/- 2 (odds ratios of 0.13 to 7.4).
+  # This constrains the model from finding "exploded" coefficients due to separation.
+  prior(normal(0, 1), class = "b"),
+  
+  # C. Random Effects SDs (Group-level variations)
+  # Exponential(2). This penalizes very large standard deviations.
+  # It assumes most groups (dialects, lemmas) are clustered relatively close to the average,
+  # but allows for exceptions if the data strongly supports it.
+  prior(exponential(2), class = "sd"),
+  
+  # D. Smooths (Splines)
+  # Exponential(2). Controls the "wiggliness" of the time trajectories.
+  # Prevents the curve from overfitting every minor fluctuation in the centuries.
+  prior(exponential(2), class = "sds"),
+)
+
+comprehensive_fit_no_slopes <- brm(
+  formula = comprehensive_formula_no_slopes,
+  data = model_data,
+  priors = priors,
+  chains = 4,
+  iter = 3500,           # Increased iterations for complex random effects
+  warmup = 2500,
+  cores = 4,
+  threads = threading(2),
+  backend = "cmdstanr",     # or "cmdstanr" if installed for speed
+  control = list(adapt_delta = 0.99, max_treedepth=12), # Stricter controls for convergence
+  file = "analysis/models/comprehensive_brms_fit_no_slopes"
+)
