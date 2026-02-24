@@ -1,3 +1,18 @@
+### Try model stacking in `loo` (loo_model_weights)
+
+### Try to fit the model on MHG-only and on ENHG-only and then compare the results
+
+### Marginal effect of freq on levelling. Take into account how the freq contributes to all the parts where it participates
+
+### Do the plot of tensor product of freq and date to see if it shows any pattern
+
+### Start writing part of the paper: the background, the rationale. This will make clear justification of what we're making
+### It would be good to lay everything out down to choosing tensor product vs smooth; see the previous effects of freq
+### in other papers, cite those as expectations for our paper
+### 
+
+
+
 library(dplyr)
 library(tidyr)
 library(brms)
@@ -74,50 +89,12 @@ model_data <- raw_data %>%
          log_freq, is_bipartite, element_type, has_levelled)
 
 model_data <- unique(model_data)
-
-# 3. The "Mega-Model" Definition
-# ------------------------------------
-# 1. Interaction date * element_type -> s(date, by = element_type)
-# 2. Interaction date * is_bipartite -> s(date, by = is_bipartite)
-# 3. Interaction date * freq         -> t2(date, log_freq)
-# 4. Random Effects:
-#    - Variety (intercept)
-#    - Document ID (intercept)
-#    - Std_infl (intercept)
-#    - Lemma: Random Intercept + Random Slopes for element_type and is_bipartite
-
-comprehensive_formula <- bf(
-  has_levelled ~ 
-    # --- Fixed Effects & Interactions ---
-    is_bipartite + 
-    element_type +
-    # Smooths for Time Interactions
-    # How the leveling probability changes over time, specific to Vowel vs Consonant
-    s(date, by = element_type) + 
-    # How the leveling probability changes over time, specific to Bipartite vs Non-Bipartite
-    s(date, by = is_bipartite) +
-    # interaction between dialect and time
-    s(date, by = variety) + 
-    # Interaction between Time and Frequency (Tensor product smooth)
-    # Allows the effect of frequency to vary over time (e.g., freq effects might get stronger later)
-    t2(date, log_freq) +
-    # --- Random Effects ---
-    # 1. Document ID as random intercept
-    (1 | id) +
-    # 2. Variety/Dialect as random intercept
-    (1 | variety) +
-    # 3. Inflectional Context as random intercept
-    (1 | std_infl) +
-    # 4. Lemma Random Structure
-    #    Intercept + Slopes for Element Type and Bipartiteness.
-    #    This accounts for specific verbs being more prone to vowel/consonant leveling
-    #    or reacting differently to the bipartite constraint.
-    (1 + element_type + is_bipartite | lemma_std),
-    
-  family = bernoulli()
-)
+# write.csv(model_data, "analysis/data_for_analysis.csv", row.names = FALSE)
 
 
+# 3. Model definition and running
+
+### PRIORS ###
 priors <- c(
   # A. Intercept
   # Normal(0, 1.5) on the log-odds scale.
@@ -141,266 +118,110 @@ priors <- c(
   # Exponential(2). Controls the "wiggliness" of the time trajectories.
   # Prevents the curve from overfitting every minor fluctuation in the centuries.
   prior(exponential(2), class = "sds"),
-  
-  # E. Correlations (for lemma_std random slopes)
-  # LKJ(2). The LKJ prior controls the correlation matrix.
-  # A value of 1 is uniform (any correlation is equally likely).
-  # A value of 2 weakly favors 0 correlation, making the model skeptical of 
-  # perfect correlations (-1 or 1) unless the data screams for it.
-  prior(lkj(2), class = "cor")
 )
 
-# 4. Model Fitting
-# ------------------------------------
-# Note: This is a complex model. Ensure you have sufficient data points per group 
-# to support the random slopes, otherwise convergence warnings may occur.
-comprehensive_fit <- brm(
-  formula = comprehensive_formula,
-  data = model_data,
-  prior = priors,
-  chains = 4,
-  iter = 4500,           # Increased iterations for complex random effects
-  warmup = 3250,
-  cores = 4,
-  threads = threading(2),
-  backend = "cmdstanr",     # or "cmdstanr" if installed for speed
-  control = list(adapt_delta = 0.99, max_treedepth=12), # Stricter controls for convergence
-  file = "analysis/models/comprehensive_brms_fit"
-)
+### FORMULA ###
 
-
-#########################################################################################################
-
-comprehensive_formula_no_slopes <- bf(
+base_formula <- bf(
   has_levelled ~ 
-    # --- Fixed Effects & Interactions ---
-    is_bipartite + 
-    element_type +
-    # Smooths for Time Interactions
-    # How the leveling probability changes over time, specific to Vowel vs Consonant
-    s(date, by = element_type) + 
-    # How the leveling probability changes over time, specific to Bipartite vs Non-Bipartite
-    s(date, by = is_bipartite) +
-    # interaction between dialect and time
-    s(date, by = variety) + 
-    # Interaction between Time and Frequency (Tensor product smooth)
-    # Allows the effect of frequency to vary over time (e.g., freq effects might get stronger later)
-    t2(date, log_freq) +
-    # --- Random Effects ---
-    # 1. Document ID as random intercept
-    (1 | id) +
-    # 2. Variety/Dialect as random intercept
-    (1 | variety) +
-    # 3. Inflectional Context as random intercept
-    (1 | std_infl),
+    s(date, k = 4) +
+    is_bipartite +
+    s(date, by = is_bipartite, k = 4),
+    element_type + s(date, by = element_type, k = 4) +
+    element_type * is_bipartite +
+    log_freq + s(date, by = log_freq, k = 4) + 
+    std_infl + s(date, by = std_infl, k = 4) + 
+    std_infl * element_type + 
+    (1|variety) + s(date, by = variety) + 
+    (1|lemma_std) +
+    (1|id),    
   family = bernoulli()
 )
 
-priors <- c(
-  # A. Intercept
-  # Normal(0, 1.5) on the log-odds scale.
-  # This covers a probability range of roughly 0.05 to 0.95, which is realistic 
-  # for leveling (it's rarely 0% or 100% likely across the whole board).
-  prior(normal(0, 1.5), class = "Intercept"),
-  
-  # B. Fixed Effects (Betas)
-  # Normal(0, 1). This assumes that the effect of any single predictor (like bipartite)
-  # is unlikely to shift the log-odds by more than +/- 2 (odds ratios of 0.13 to 7.4).
-  # This constrains the model from finding "exploded" coefficients due to separation.
-  prior(normal(0, 1), class = "b"),
-  
-  # C. Random Effects SDs (Group-level variations)
-  # Exponential(2). This penalizes very large standard deviations.
-  # It assumes most groups (dialects, lemmas) are clustered relatively close to the average,
-  # but allows for exceptions if the data strongly supports it.
-  prior(exponential(2), class = "sd"),
-  
-  # D. Smooths (Splines)
-  # Exponential(2). Controls the "wiggliness" of the time trajectories.
-  # Prevents the curve from overfitting every minor fluctuation in the centuries.
-  prior(exponential(2), class = "sds")
-)
+### FITTING ###
 
-comprehensive_fit_no_slopes <- brm(
-  formula = comprehensive_formula_no_slopes,
-  data = model_data,
-  prior = priors,
-  chains = 4,
-  iter = 4500,           # Increased iterations for complex random effects
-  warmup = 3250,
-  cores = 4,
-  threads = threading(2),
-  backend = "cmdstanr",     # or "cmdstanr" if installed for speed
-  control = list(adapt_delta = 0.99, max_treedepth=12), # Stricter controls for convergence
-  file = "analysis/models/comprehensive_brms_fit_no_slopes"
-)
-
-
-
-#################################################################################################
-
-comprehensive_formula_k3 <- bf(
-  has_levelled ~ 
-    # --- Fixed Effects & Interactions ---
-    is_bipartite + 
-    element_type +
-    # Smooths for Time Interactions
-    # How the leveling probability changes over time, specific to Vowel vs Consonant
-    s(date, by = element_type, k=3) + 
-    # How the leveling probability changes over time, specific to Bipartite vs Non-Bipartite
-    s(date, by = is_bipartite, k=3) +
-    # interaction between dialect and time
-    s(date, by = variety, k=3) + 
-    # Interaction between Time and Frequency (Tensor product smooth)
-    # Allows the effect of frequency to vary over time (e.g., freq effects might get stronger later)
-    t2(date, log_freq) +
-    # --- Random Effects ---
-    # 1. Document ID as random intercept
-    (1 | id) +
-    # 2. Variety/Dialect as random intercept
-    (1 | variety) +
-    # 3. Inflectional Context as random intercept
-    (1 | std_infl) +
-    # 4. Lemma Random Structure
-    #    Intercept + Slopes for Element Type and Bipartiteness.
-    #    This accounts for specific verbs being more prone to vowel/consonant leveling
-    #    or reacting differently to the bipartite constraint.
-    (1 + element_type + is_bipartite | lemma_std),
-    
-  family = bernoulli()
-)
-
-
-priors <- c(
-  # A. Intercept
-  # Normal(0, 1.5) on the log-odds scale.
-  # This covers a probability range of roughly 0.05 to 0.95, which is realistic 
-  # for leveling (it's rarely 0% or 100% likely across the whole board).
-  prior(normal(0, 1.5), class = "Intercept"),
-  
-  # B. Fixed Effects (Betas)
-  # Normal(0, 1). This assumes that the effect of any single predictor (like bipartite)
-  # is unlikely to shift the log-odds by more than +/- 2 (odds ratios of 0.13 to 7.4).
-  # This constrains the model from finding "exploded" coefficients due to separation.
-  prior(normal(0, 1), class = "b"),
-  
-  # C. Random Effects SDs (Group-level variations)
-  # Exponential(2). This penalizes very large standard deviations.
-  # It assumes most groups (dialects, lemmas) are clustered relatively close to the average,
-  # but allows for exceptions if the data strongly supports it.
-  prior(exponential(2), class = "sd"),
-  
-  # D. Smooths (Splines)
-  # Exponential(2). Controls the "wiggliness" of the time trajectories.
-  # Prevents the curve from overfitting every minor fluctuation in the centuries.
-  prior(exponential(2), class = "sds"),
-  
-  # E. Correlations (for lemma_std random slopes)
-  # LKJ(2). The LKJ prior controls the correlation matrix.
-  # A value of 1 is uniform (any correlation is equally likely).
-  # A value of 2 weakly favors 0 correlation, making the model skeptical of 
-  # perfect correlations (-1 or 1) unless the data screams for it.
-  prior(lkj(2), class = "cor")
-)
-
-# 4. Model Fitting
-# ------------------------------------
-# Note: This is a complex model. Ensure you have sufficient data points per group 
-# to support the random slopes, otherwise convergence warnings may occur.
-comprehensive_fit_k3 <- brm(
-  formula = comprehensive_formula_k3,
+fit <- brm(
+  formula = base_formula,
   data = model_data,
   prior = priors,
   chains = 4,
   iter = 4000,           # Increased iterations for complex random effects
-  warmup = 2750,
+  warmup = 2000,
   cores = 4,
   threads = threading(2),
-  backend = "cmdstanr",     # or "cmdstanr" if installed for speed
-  control = list(adapt_delta = 0.99, max_treedepth=12), # Stricter controls for convergence
-  file = "analysis/models/comprehensive_brms_fit_k3"
+  backend = "cmdstanr",     # allows for threading
+  control = list(adapt_delta = 0.99, max_treedepth=10), # Slightly stricter controls for convergence
+  file = "analysis/models/base_fit"
 )
 
-#########################################################################################################
 
 
-linear_freq_formula_k3 <- bf(
+### FORMULA 2 ###
+
+base_formula_k10 <- bf(
   has_levelled ~ 
-    # --- Fixed Effects & Interactions ---
-    is_bipartite + 
-    element_type +
-    # Smooths for Time Interactions
-    # How the leveling probability changes over time, specific to Vowel vs Consonant
-    s(date, by = element_type, k=3) + 
-    # How the leveling probability changes over time, specific to Bipartite vs Non-Bipartite
-    s(date, by = is_bipartite, k=3) +
-    # interaction between dialect and time
-    s(date, by = variety, k=3) + 
-    # The "Average" linear effect of frequency and how that effect changes over time
-    log_freq + s(date, by = log_freq) +
-    # --- Random Effects ---
-    # 1. Document ID as random intercept
-    (1 | id) +
-    # 2. Variety/Dialect as random intercept
-    (1 | variety) +
-    # 3. Inflectional Context as random intercept
-    (1 | std_infl) +
-    # 4. Lemma Random Structure
-    #    Intercept + Slopes for Element Type and Bipartiteness.
-    #    This accounts for specific verbs being more prone to vowel/consonant leveling
-    #    or reacting differently to the bipartite constraint.
-    (1 + element_type + is_bipartite | lemma_std),
-    
+    s(date, k = 10) +
+    is_bipartite +
+    s(date, by = is_bipartite, k = 10),
+    element_type + s(date, by = element_type, k = 10) +
+    element_type * is_bipartite +
+    log_freq + s(date, by = log_freq, k = 10) + 
+    std_infl + s(date, by = std_infl, k = 10) + 
+    std_infl * element_type + 
+    (1|variety) + s(date, by = variety) + 
+    (1|lemma_std) +
+    (1|id),    
   family = bernoulli()
 )
 
+### FITTING ###
 
-priors <- c(
-  # A. Intercept
-  # Normal(0, 1.5) on the log-odds scale.
-  # This covers a probability range of roughly 0.05 to 0.95, which is realistic 
-  # for leveling (it's rarely 0% or 100% likely across the whole board).
-  prior(normal(0, 1.5), class = "Intercept"),
-  
-  # B. Fixed Effects (Betas)
-  # Normal(0, 1). This assumes that the effect of any single predictor (like bipartite)
-  # is unlikely to shift the log-odds by more than +/- 2 (odds ratios of 0.13 to 7.4).
-  # This constrains the model from finding "exploded" coefficients due to separation.
-  prior(normal(0, 1), class = "b"),
-  
-  # C. Random Effects SDs (Group-level variations)
-  # Exponential(2). This penalizes very large standard deviations.
-  # It assumes most groups (dialects, lemmas) are clustered relatively close to the average,
-  # but allows for exceptions if the data strongly supports it.
-  prior(exponential(2), class = "sd"),
-  
-  # D. Smooths (Splines)
-  # Exponential(2). Controls the "wiggliness" of the time trajectories.
-  # Prevents the curve from overfitting every minor fluctuation in the centuries.
-  prior(exponential(2), class = "sds"),
-  
-  # E. Correlations (for lemma_std random slopes)
-  # LKJ(2). The LKJ prior controls the correlation matrix.
-  # A value of 1 is uniform (any correlation is equally likely).
-  # A value of 2 weakly favors 0 correlation, making the model skeptical of 
-  # perfect correlations (-1 or 1) unless the data screams for it.
-  prior(lkj(2), class = "cor")
-)
-
-# 4. Model Fitting
-# ------------------------------------
-# Note: This is a complex model. Ensure you have sufficient data points per group 
-# to support the random slopes, otherwise convergence warnings may occur.
-linear_freq_fit_k3 <- brm(
-  formula = linear_freq_formula_k3,
+fit <- brm(
+  formula = base_formula_k10,
   data = model_data,
   prior = priors,
   chains = 4,
   iter = 4000,           # Increased iterations for complex random effects
-  warmup = 2750,
+  warmup = 2000,
   cores = 4,
   threads = threading(2),
-  backend = "cmdstanr",     # or "cmdstanr" if installed for speed
-  control = list(adapt_delta = 0.99, max_treedepth=10), # Stricter controls for convergence
-  file = "analysis/models/linear_freq_brms_fit_k3"
+  backend = "cmdstanr",     # allows for threading
+  control = list(adapt_delta = 0.99, max_treedepth=10), # Slightly stricter controls for convergence
+  file = "analysis/models/base_fit_k10"
+)
+
+
+
+### FORMULA ###
+
+base_formula_tensor_product <- bf(
+  has_levelled ~ 
+    s(date, k = 4) +
+    is_bipartite +
+    s(date, by = is_bipartite, k = 4),
+    element_type + s(date, by = element_type, k = 4) +
+    element_type * is_bipartite +
+    log_freq + t2(date, log_freq, k = c(4, 4)) + 
+    std_infl + s(date, by = std_infl, k = 4) + 
+    std_infl * element_type + 
+    (1|variety) + s(date, by = variety) + 
+    (1|lemma_std) +
+    (1|id),    
+  family = bernoulli()
+)
+
+### FITTING ###
+
+fit <- brm(
+  formula = base_formula_tensor_product,
+  data = model_data,
+  prior = priors,
+  chains = 4,
+  iter = 4500,           # Increased iterations for complex random effects
+  warmup = 2500,
+  cores = 4,
+  threads = threading(2),
+  backend = "cmdstanr",     # allows for threading
+  control = list(adapt_delta = 0.99, max_treedepth=10), # Slightly stricter controls for convergence
+  file = "analysis/models/base_fit_tensor_product"
 )
