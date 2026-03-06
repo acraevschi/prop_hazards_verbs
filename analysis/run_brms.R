@@ -4,13 +4,6 @@
 
 ### Marginal effect of freq on levelling. Take into account how the freq contributes to all the parts where it participates
 
-### Do the plot of tensor product of freq and date to see if it shows any pattern
-
-### Start writing part of the paper: the background, the rationale. This will make clear justification of what we're making
-### It would be good to lay everything out down to choosing tensor product vs smooth; see the previous effects of freq
-### in other papers, cite those as expectations for our paper
-### 
-
 
 
 library(dplyr)
@@ -91,7 +84,7 @@ model_data <- raw_data %>%
 model_data <- unique(model_data)
 # write.csv(model_data, "analysis/data_for_analysis.csv", row.names = FALSE)
 
-
+model_data
 # 3. Model definition and running
 
 ### PRIORS ###
@@ -117,7 +110,7 @@ priors <- c(
   # D. Smooths (Splines)
   # Exponential(2). Controls the "wiggliness" of the time trajectories.
   # Prevents the curve from overfitting every minor fluctuation in the centuries.
-  prior(exponential(2), class = "sds"),
+  prior(exponential(2), class = "sds")
 )
 
 ### FORMULA ###
@@ -126,7 +119,7 @@ base_formula <- bf(
   has_levelled ~ 
     s(date, k = 4) +
     is_bipartite +
-    s(date, by = is_bipartite, k = 4),
+    s(date, by = is_bipartite, k = 4) +
     element_type + s(date, by = element_type, k = 4) +
     element_type * is_bipartite +
     log_freq + s(date, by = log_freq, k = 4) + 
@@ -162,7 +155,7 @@ base_formula_k10 <- bf(
   has_levelled ~ 
     s(date, k = 10) +
     is_bipartite +
-    s(date, by = is_bipartite, k = 10),
+    s(date, by = is_bipartite, k = 10) +
     element_type + s(date, by = element_type, k = 10) +
     element_type * is_bipartite +
     log_freq + s(date, by = log_freq, k = 10) + 
@@ -198,10 +191,10 @@ base_formula_tensor_product <- bf(
   has_levelled ~ 
     s(date, k = 4) +
     is_bipartite +
-    s(date, by = is_bipartite, k = 4),
+    s(date, by = is_bipartite, k = 4) +
     element_type + s(date, by = element_type, k = 4) +
     element_type * is_bipartite +
-    log_freq + t2(date, log_freq, k = c(4, 4)) + 
+    log_freq + t2(date, log_freq, k = 4) + 
     std_infl + s(date, by = std_infl, k = 4) + 
     std_infl * element_type + 
     (1|variety) + s(date, by = variety) + 

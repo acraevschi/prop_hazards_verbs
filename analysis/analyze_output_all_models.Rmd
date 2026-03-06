@@ -1,0 +1,223 @@
+---
+title: "Paradigm Leveling Model Comparison"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+# Silence warnings and messages globally to keep the report clean
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(brms)
+library(rstan)
+library(loo)
+library(bayesplot)
+library(ggplot2)
+library(tidybayes)
+library(marginaleffects)
+library(modelr)
+library(purrr)
+
+options(mc.cores = 6)
+```
+
+
+# Data loading
+
+Could be useful for inspection:
+```{r}
+model_data <- read.csv("data_for_analysis.csv")
+head(model_data)
+```
+# Model loading and comparison
+
+```{r}
+# Load the three new models
+fit_base   <- readRDS("models/base_fit.rds")
+fit_k10    <- readRDS("models/base_fit_k10.rds")
+fit_tensor <- readRDS("models/base_fit_tensor_product.rds")
+
+# Put them in a named list for easier iteration
+models <- list(
+  "Base (k=4)" = fit_base,
+  "Base (k=10)" = fit_k10,
+  "Tensor Product" = fit_tensor
+)
+```
+
+```{r}
+# Compute LOO for each model and compare
+# Warning: This step might take a few moments depending on model size.
+loo_list <- map(models, loo)
+comparison <- loo_compare(fit_base, fit_k10, fit_tensor)
+
+print(comparison, simplify = FALSE)
+```
+
+```{r}
+stacking_weights <- loo_model_weights(loo_list, method = "stacking")
+print(stacking_weights)
+```
+
+
+# Fixed effects
+```{r}
+# Extract fixed effects draws for all models
+extract_fixed_draws <- function(model, model_name) {
+  model %>%
+    gather_draws(`^b_[^s].*`, regex = TRUE) %>% # Exclude spline terms
+    mutate(Model = model_name)
+}
+
+all_fixed_draws <- map2_dfr(models, names(models), extract_fixed_draws)
+
+ggplot(all_fixed_draws, aes(x = .value, y = .variable, color = Model)) +
+  stat_pointinterval(position = position_dodge(width = 0.6)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "black") +
+  labs(
+    title = "Posterior Distributions of Fixed Effects Across Models",
+    x = "Estimate (Log-Odds)",
+    y = "Predictor"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+# Effect of bipartite marking
+
+```{r}
+# Generate prediction grid
+grid_full <- model_data %>%
+  data_grid(
+    date = seq_range(date, n = 50), 
+    is_bipartite = c("0", "1"),
+    element_type = c("vowel", "consonant"),
+    variety = c("Central German", "Upper German"),
+    std_infl = "PastSg", # Holding constant for the plot
+    log_freq = mean(model_data$log_freq, na.rm = TRUE)
+  ) 
+
+# Function to get predictions and calculate difference
+get_bipartite_diff <- function(model, model_name) {
+  grid_full %>%
+    add_epred_draws(model, re_formula = NA) %>%
+    ungroup() %>%
+    select(date, is_bipartite, element_type, variety, .epred, .draw) %>%
+    pivot_wider(names_from = is_bipartite, values_from = .epred) %>%
+    mutate(
+      diff = `1` - `0`,
+      Model = model_name
+    )
+}
+
+# Apply to all models and combine
+plot_data_diff <- map2_dfr(models, names(models), get_bipartite_diff)
+
+ggplot(plot_data_diff, aes(x = date, y = diff, fill = Model, color = Model)) +
+  stat_lineribbon(.width = 0.95, alpha = 0.3) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  facet_grid(element_type ~ variety) +
+  labs(
+    title = "Effect of Bipartite Marking on Leveling Probability",
+    subtitle = "Difference: Bipartite - Non-Bipartite (Negative values support Paul's Principle)",
+    x = "Year",
+    y = "Difference in Probability"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+And now marginal effect
+
+```{r}
+ame_bipartite <- avg_comparisons(
+  fit_k10, 
+  variables = "is_bipartite",
+  ndraws = 500
+)
+print(ame_bipartite)
+```
+
+
+# Time and frequency effect
+
+```{r}
+# This will output a line plot with 3 different trajectories representing 
+# average, low, and high frequency verbs over time.
+conditional_effects(fit_base, effects = "date:log_freq")
+conditional_effects(fit_k10, effects = "date:log_freq")
+conditional_effects(fit_tensor, effects = "date:log_freq")
+
+```
+
+```{r}
+conditional_effects(fit_base, effects = "date")
+conditional_effects(fit_k10, effects = "date")
+conditional_effects(fit_tensor, effects = "date")
+```
+
+Marginal effect of frequency
+
+```{r}
+ame_freq <- avg_slopes(
+  fit_k10, 
+  variables = "log_freq",
+  ndraws = 500
+)
+
+print(ame_freq)
+```
+
+
+# Time and vowel/consonant dynamics
+
+```{r}
+# Extract conditional effects for date:element_type from all models
+get_ce_data <- function(model, model_name) {
+  ce <- conditional_effects(model, effects = "date:element_type")
+  ce$`date:element_type` %>% mutate(Model = model_name)
+}
+
+all_ce_data <- map2_dfr(models, names(models), get_ce_data)
+
+ggplot(all_ce_data, aes(x = date, y = estimate__, color = element_type, fill = element_type, linetype = Model)) +
+  geom_line(size = 1) +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.1, color = NA) +
+  labs(
+    title = "Probability of Leveling Over Time by Element Type",
+    x = "Year",
+    y = "Probability of Leveling"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+# Paradigm cell effect
+
+```{r}
+get_infl_ce <- function(model, model_name) {
+  ce <- conditional_effects(model, effects = "std_infl:element_type")
+  ce$`std_infl:element_type` %>% mutate(Model = model_name)
+}
+
+all_infl_ce <- map2_dfr(models, names(models), get_infl_ce)
+
+ggplot(all_infl_ce, aes(x = std_infl, y = estimate__, color = Model, shape = element_type)) +
+  geom_point(position = position_dodge(width = 0.4), size = 3) +
+  geom_errorbar(aes(ymin = lower__, ymax = upper__), width = 0.2, position = position_dodge(width = 0.4)) +
+  labs(
+    title = "Effect of Inflectional Context and Element Type on Leveling",
+    x = "Inflectional Context",
+    y = "Probability of Leveling"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+
+
