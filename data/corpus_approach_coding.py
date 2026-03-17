@@ -882,35 +882,3 @@ def run_pipeline(
 
 
 df = run_pipeline()
-
-df_analysis = df[
-    (
-        ((~df["is_leveled_vowel_pres"].isna()) | (~df["is_leveled_cons_pres"].isna()))
-        # | ((~df["is_leveled_cons_past"].isna()) | (~df["is_leveled_vowel_past"].isna()))
-    )
-    & (~df["is_bipartite"].isna())
-]
-
-GC_verbs_ids = [
-    # d_tt alternation starts here
-    93,
-    147,
-    353,
-    8,
-    191,
-    # ends here
-    90,
-    111,
-    17,
-    275,
-    320,
-    7,
-    132,
-    19,
-    329,
-    214,
-    342,
-    117,
-    324,
-    143,
-]
