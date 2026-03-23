@@ -1,11 +1,3 @@
-### Try model stacking in `loo` (loo_model_weights)
-
-### Try to fit the model on MHG-only and on ENHG-only and then compare the results
-
-### Marginal effect of freq on levelling. Take into account how the freq contributes to all the parts where it participates
-
-
-
 library(dplyr)
 library(tidyr)
 library(brms)
@@ -138,8 +130,8 @@ fit <- brm(
   data = model_data,
   prior = priors,
   chains = 4,
-  iter = 4000,           # Increased iterations for complex random effects
-  warmup = 2000,
+  iter = 6000,           # Increased iterations for complex random effects
+  warmup = 3000,
   cores = 4,
   threads = threading(2),
   backend = "cmdstanr",     # allows for threading
@@ -174,8 +166,8 @@ fit <- brm(
   data = model_data,
   prior = priors,
   chains = 4,
-  iter = 4000,           # Increased iterations for complex random effects
-  warmup = 2000,
+  iter = 6000,           # Increased iterations for complex random effects
+  warmup = 3000,
   cores = 4,
   threads = threading(2),
   backend = "cmdstanr",     # allows for threading
@@ -210,8 +202,8 @@ fit <- brm(
   data = model_data,
   prior = priors,
   chains = 4,
-  iter = 4500,           # Increased iterations for complex random effects
-  warmup = 2500,
+  iter = 6000,           # Increased iterations for complex random effects
+  warmup = 3000,
   cores = 4,
   threads = threading(2),
   backend = "cmdstanr",     # allows for threading
