@@ -136,7 +136,7 @@ fit <- brm(
   threads = threading(2),
   backend = "cmdstanr",     # allows for threading
   control = list(adapt_delta = 0.99, max_treedepth=10), # Slightly stricter controls for convergence
-  file = "analysis/models/base_fit"
+  file = "fits/base_fit"
 )
 
 
@@ -172,7 +172,7 @@ fit <- brm(
   threads = threading(2),
   backend = "cmdstanr",     # allows for threading
   control = list(adapt_delta = 0.99, max_treedepth=10), # Slightly stricter controls for convergence
-  file = "analysis/models/base_fit_k10"
+  file = "fits/base_fit_k10"
 )
 
 
@@ -208,5 +208,5 @@ fit <- brm(
   threads = threading(2),
   backend = "cmdstanr",     # allows for threading
   control = list(adapt_delta = 0.99, max_treedepth=10), # Slightly stricter controls for convergence
-  file = "analysis/models/base_fit_tensor_product"
+  file = "fits/base_fit_tensor_product"
 )
