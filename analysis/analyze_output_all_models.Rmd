@@ -38,9 +38,9 @@ head(model_data)
 
 ```{r}
 # Load the three new models
-fit_base   <- readRDS("models/base_fit.rds")
-fit_k10    <- readRDS("models/base_fit_k10.rds")
-fit_tensor <- readRDS("models/base_fit_tensor_product.rds")
+fit_base   <- readRDS("../fits/base_fit.rds")
+fit_k10    <- readRDS("../fits/base_fit_k10.rds")
+fit_tensor <- readRDS("../fits/base_fit_tensor_product.rds")
 
 # Put them in a named list for easier iteration
 models <- list(
