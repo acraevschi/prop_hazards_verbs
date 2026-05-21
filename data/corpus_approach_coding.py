@@ -754,7 +754,7 @@ def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_change
         obs_c = row["extracted_coda"]
 
         if pd.isna(anchor_self_v):
-            return pd.Series([pd.NA] * 4)
+            return pd.Series([pd.NA] * 8)
 
         # --- Helper for Comparison ---
         def get_status(
@@ -798,6 +798,13 @@ def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_change
 
             return pd.NA
 
+        def get_alternation_pair(anchor_self, anchor_compare, historical_diff_exists):
+            if historical_diff_exists is False:
+                return pd.NA
+            if pd.isna(anchor_self) or pd.isna(anchor_compare):
+                return pd.NA
+            return f"{anchor_self} ~ {anchor_compare}"
+
         # --- Scenario 1: Leveling to Present (Weakening/Analogical leveling) ---
         # We pass 'hist_diff_v_pres' to ensure we only count leveling if Pres and Past differed historically
         lv_pres = get_status(
@@ -816,6 +823,8 @@ def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_change
             True,
             hist_diff_c_pres,
         )
+        alt_v_pres = get_alternation_pair(anchor_self_v, anchor_pres_v, hist_diff_v_pres)
+        alt_c_pres = get_alternation_pair(anchor_self_c, anchor_pres_c, hist_diff_c_pres)
 
         # --- Scenario 2: Leveling to Past (Internal Simplification) ---
         # We pass 'hist_diff_v_other' to ensure we only count leveling if Sg and Pl differed historically
@@ -835,8 +844,10 @@ def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_change
             True,
             hist_diff_c_other,
         )
+        alt_v_past = get_alternation_pair(anchor_self_v, anchor_other_v, hist_diff_v_other)
+        alt_c_past = get_alternation_pair(anchor_self_c, anchor_other_c, hist_diff_c_other)
 
-        return pd.Series([lv_pres, lv_past, lc_pres, lc_past])
+        return pd.Series([lv_pres, lv_past, lc_pres, lc_past, alt_v_pres, alt_v_past, alt_c_pres, alt_c_past])
 
     # Apply
     cols = [
@@ -844,6 +855,10 @@ def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_change
         "is_leveled_vowel_past",
         "is_leveled_cons_pres",
         "is_leveled_cons_past",
+        "vowel_alternation_pres",
+        "vowel_alternation_past",
+        "cons_alternation_pres",
+        "cons_alternation_past",
     ]
 
     tqdm.pandas(desc="Coding Variables")

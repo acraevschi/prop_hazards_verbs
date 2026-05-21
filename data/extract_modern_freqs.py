@@ -10,7 +10,7 @@ def get_lemma_frequencies(
     api_url: str = "https://korap.ids-mannheim.de/api/v1.0",
     query_language: str = "poliqarp",
     virtual_corpus: str = "",
-    delay: float = 0.25,
+    delay: float = 0.1,
     print_results: bool = False,
 ) -> Dict[str, int]:
     """
@@ -168,11 +168,11 @@ if __name__ == "__main__":
         description="Extract and assign modern lemma frequencies to lemma IDs."
     )
     parser.add_argument(
-        "--data-file",
+        "--input",
         type=str,
         required=True,
         help="Path to the input CSV file containing the data.",
     )
     args = parser.parse_args()
 
-    main(args.data_file)
+    main(args.input)
