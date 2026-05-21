@@ -4,7 +4,6 @@ library(brms)
 library(cmdstanr)
 library(rstan)
 
-
 # 1. Load Data
 # ------------------------------------
 raw_data <- read.csv("data/coded_output.csv", stringsAsFactors = FALSE)
@@ -22,191 +21,261 @@ raw_data <- raw_data %>%
   mutate(lemma = lemma_rep) %>%
   select(-lemma_rep)
 
-model_data <- raw_data %>%
-  # A. Filter: Keep only rows where is_bipartite is coded (not NA)
-  filter(!is.na(is_bipartite)) %>%
-  
-  # B. Filter: Drop rows where BOTH leveling indicators are missing
-  #    (Keep row if at least one of them has a value)
-  filter(!is.na(is_leveled_vowel_pres) | !is.na(is_leveled_cons_pres))
 
-
-# 2. Preprocessing Pipeline
+# 2. Calculate Alternation Frequencies (Type Frequency by Variety)
 # ------------------------------------
-model_data <- raw_data %>%
-  # A. Filter: Keep only rows where is_bipartite is coded (not NA)
+# A helper function to count unique lemmas for a given alternation pattern per variety
+calc_type_freq <- function(df, alt_col) {
+  df %>%
+    filter(!is.na(!!sym(alt_col)), !!sym(alt_col) != "") %>%
+    group_by(variety, !!sym(alt_col)) %>%
+    summarise(freq = n_distinct(lemma_id), .groups = "drop") %>%
+    rename(!!paste0(alt_col, "_freq") := freq)
+}
+
+# Attach the frequencies to the main dataset
+raw_data <- raw_data %>%
+  left_join(calc_type_freq(raw_data, "vowel_alternation_pres"), by = c("variety", "vowel_alternation_pres")) %>%
+  left_join(calc_type_freq(raw_data, "vowel_alternation_past"), by = c("variety", "vowel_alternation_past")) %>%
+  left_join(calc_type_freq(raw_data, "cons_alternation_pres"), by = c("variety", "cons_alternation_pres")) %>%
+  left_join(calc_type_freq(raw_data, "cons_alternation_past"), by = c("variety", "cons_alternation_past"))
+
+
+# 3. Preprocessing Pipeline
+# ------------------------------------
+base_model_data <- raw_data %>%
+  mutate(
+    v_pres = as.numeric(is_leveled_vowel_pres),
+    v_past = as.numeric(is_leveled_vowel_past),
+    c_pres = as.numeric(is_leveled_cons_pres),
+    c_past = as.numeric(is_leveled_cons_past),
+    vowel_leveled_any = case_when(
+      v_pres == 1 | v_past == 1 ~ 1,
+      v_pres == 0 | v_past == 0 ~ 0,
+      TRUE ~ NA_real_
+    ),
+    cons_leveled_any = case_when(
+      c_pres == 1 | c_past == 1 ~ 1,
+      c_pres == 0 | c_past == 0 ~ 0,
+      TRUE ~ NA_real_
+    )
+  ) %>%
   filter(!is.na(is_bipartite)) %>%
-  
-  # B. Filter: Drop rows where BOTH leveling indicators are missing
-  #    (Keep row if at least one of them has a value)
-  filter(!is.na(is_leveled_vowel_pres) | !is.na(is_leveled_cons_pres)) %>%
-  
-  # C. Transformation: Pivot to Long Format
-  #    We want separate rows for Vowel leveling events and Consonant leveling events
+  filter(!is.na(vowel_leveled_any) | !is.na(cons_leveled_any)) %>%
   pivot_longer(
-    cols = c(is_leveled_vowel_pres, is_leveled_cons_pres),
+    cols = c(vowel_leveled_any, cons_leveled_any),
     names_to = "element_type_raw",
     values_to = "has_levelled"
   ) %>%
-  
-  # D. Post-Pivot Cleaning
-  #    Remove rows created by the pivot that are NAs (e.g. if a verb only had vowel info)
   filter(!is.na(has_levelled)) %>%
   mutate(
-    # Clean up element type names
-    element_type = if_else(element_type_raw == "is_leveled_vowel_pres", "vowel", "consonant"),
-    
+    element_type = if_else(element_type_raw == "vowel_leveled_any", "vowel", "consonant"),
+    target_alt_pres_freq = if_else(element_type == "vowel", vowel_alternation_pres_freq, cons_alternation_pres_freq),
+    target_alt_past_freq = if_else(element_type == "vowel", vowel_alternation_past_freq, cons_alternation_past_freq),
+    has_alt_pres = if_else(!is.na(target_alt_pres_freq) & target_alt_pres_freq > 0, "yes", "no"),
+    has_alt_past = if_else(!is.na(target_alt_past_freq) & target_alt_past_freq > 0, "yes", "no"),
+    log_freq = log(lemma_freq_per_1000 + 0.0001)
+  )
+
+# Step 3b: Calculate the GLOBAL means for centering (only for existing alternations)
+# We log it first, then take the mean, to get the geometric mean of the frequencies.
+global_mean_pres <- mean(log(base_model_data$target_alt_pres_freq[base_model_data$has_alt_pres == "yes"]))
+global_mean_past <- mean(log(base_model_data$target_alt_past_freq[base_model_data$has_alt_past == "yes"]))
+
+# Step 3c: Apply the centering and finalize factors
+model_data <- base_model_data %>%
+  mutate(
+    # NEW: Apply the global mean centering. If "no", exactly 0.
+    # log_alt_pres_freq = if_else(has_alt_pres == "yes", log(target_alt_pres_freq) - global_mean_pres, 0),
+    # log_alt_past_freq = if_else(has_alt_past == "yes", log(target_alt_past_freq) - global_mean_past, 0),
+    log_alt_pres_freq = if_else(has_alt_pres == "yes", log(target_alt_pres_freq), 0),
+    log_alt_past_freq = if_else(has_alt_past == "yes", log(target_alt_past_freq), 0),
+    marking_type = case_when(
+      element_type == "vowel" & is_bipartite %in% c(0, "0") ~ "vowel_unipartite",
+      element_type == "vowel" & is_bipartite %in% c(1, "1") ~ "vowel_bipartite",
+      element_type == "consonant" & is_bipartite %in% c(1, "1") ~ "consonant_bipartite"
+    ),
+
     # Ensure factors
+    has_alt_pres = as.factor(has_alt_pres),
+    has_alt_past = as.factor(has_alt_past),
+    marking_type = as.factor(marking_type),
     element_type = as.factor(element_type),
     is_bipartite = as.factor(is_bipartite),
     variety = as.factor(variety),
-    lemma_std = as.factor(lemma_id), # Assuming 'lemma' column is the standard ID
-
-    id = as.factor(id),           # Document ID
-    std_infl = as.factor(std_infl),
-    
-    # Log transform frequency (adding small constant to avoid log(0) if needed)
-    log_freq = log(lemma_freq_per_1000 + 0.0001)
+    corpus = as.factor(corpus),
+    lemma_std = as.factor(lemma_id),
+    id = as.factor(id),
+    std_infl = as.factor(std_infl)
   ) %>%
-  
-  # Select final columns for cleanliness
-  select(lemma, lemma_std, date, id, variety, std_infl, 
-         log_freq, is_bipartite, element_type, has_levelled)
+  select(
+    lemma, lemma_std, date, log_freq,
+    has_alt_pres, log_alt_pres_freq,
+    has_alt_past, log_alt_past_freq,
+    marking_type, is_bipartite, element_type, has_levelled,
+    id, variety, std_infl, corpus
+  )
 
 model_data <- unique(model_data)
 # write.csv(model_data, "analysis/data_for_analysis.csv", row.names = FALSE)
 
-model_data
-# 3. Model definition and running
+# 4. Model definition and running
+# ------------------------------------
 
 ### PRIORS ###
 priors <- c(
-  # A. Intercept
-  # Normal(0, 1.5) on the log-odds scale.
-  # This covers a probability range of roughly 0.05 to 0.95, which is realistic 
-  # for leveling (it's rarely 0% or 100% likely across the whole board).
   prior(normal(0, 1.5), class = "Intercept"),
-  
-  # B. Fixed Effects (Betas)
-  # Normal(0, 1). This assumes that the effect of any single predictor (like bipartite)
-  # is unlikely to shift the log-odds by more than +/- 2 (odds ratios of 0.13 to 7.4).
-  # This constrains the model from finding "exploded" coefficients due to separation.
   prior(normal(0, 1), class = "b"),
-  
-  # C. Random Effects SDs (Group-level variations)
-  # Exponential(2). This penalizes very large standard deviations.
-  # It assumes most groups (dialects, lemmas) are clustered relatively close to the average,
-  # but allows for exceptions if the data strongly supports it.
   prior(exponential(2), class = "sd"),
-  
-  # D. Smooths (Splines)
-  # Exponential(2). Controls the "wiggliness" of the time trajectories.
-  # Prevents the curve from overfitting every minor fluctuation in the centuries.
   prior(exponential(2), class = "sds")
 )
 
 ### FORMULA ###
-
 base_formula <- bf(
-  has_levelled ~ 
+  has_levelled ~
     s(date, k = 4) +
-    is_bipartite +
-    s(date, by = is_bipartite, k = 4) +
-    element_type + s(date, by = element_type, k = 4) +
-    element_type * is_bipartite +
-    log_freq + s(date, by = log_freq, k = 4) + 
-    std_infl + s(date, by = std_infl, k = 4) + 
-    std_infl * element_type + 
-    (1|variety) + s(date, by = variety) + 
-    (1|lemma_std) +
-    (1|id),    
+    marking_type +
+    s(date, by = marking_type, k = 4) +
+    log_freq + s(date, by = log_freq, k = 4) +
+
+    # NEW: Include BOTH the indicator and the continuous frequency
+    has_alt_pres + log_alt_pres_freq +
+    has_alt_past + log_alt_past_freq +
+
+    std_infl + s(date, by = std_infl, k = 4) +
+    std_infl * marking_type +
+    (1 | variety) + s(date, by = variety) +
+    (1 | lemma_std) +
+    (1 | id),
   family = bernoulli()
 )
 
 ### FITTING ###
-
 fit <- brm(
   formula = base_formula,
   data = model_data,
   prior = priors,
   chains = 4,
-  iter = 6000,           # Increased iterations for complex random effects
-  warmup = 3000,
+  iter = 4000,
+  warmup = 2000,
   cores = 4,
-  threads = threading(2),
-  backend = "cmdstanr",     # allows for threading
-  control = list(adapt_delta = 0.99, max_treedepth=10), # Slightly stricter controls for convergence
-  file = "fits/base_fit"
+  threads = threading(4),
+  backend = "cmdstanr",
+  control = list(adapt_delta = 0.99, max_treedepth = 10),
+  file = "fits/base_fit_marking_type"
 )
 
+add_criterion(fit, "loo")
 
 
-### FORMULA 2 ###
-
+### FORMULA ###
 base_formula_k10 <- bf(
-  has_levelled ~ 
+  has_levelled ~
     s(date, k = 10) +
-    is_bipartite +
-    s(date, by = is_bipartite, k = 10) +
-    element_type + s(date, by = element_type, k = 10) +
-    element_type * is_bipartite +
-    log_freq + s(date, by = log_freq, k = 10) + 
-    std_infl + s(date, by = std_infl, k = 10) + 
-    std_infl * element_type + 
-    (1|variety) + s(date, by = variety) + 
-    (1|lemma_std) +
-    (1|id),    
+    marking_type +
+    s(date, by = marking_type, k = 10) +
+    log_freq + s(date, by = log_freq, k = 10) +
+
+    # NEW: Include BOTH the indicator and the continuous frequency
+    has_alt_pres + log_alt_pres_freq +
+    has_alt_past + log_alt_past_freq +
+
+    std_infl + s(date, by = std_infl, k = 10) +
+    std_infl * marking_type +
+    (1 | variety) + s(date, by = variety) +
+    (1 | lemma_std) +
+    (1 | id),
   family = bernoulli()
 )
 
 ### FITTING ###
-
 fit <- brm(
   formula = base_formula_k10,
   data = model_data,
   prior = priors,
   chains = 4,
-  iter = 6000,           # Increased iterations for complex random effects
-  warmup = 3000,
+  iter = 4000,
+  warmup = 2000,
   cores = 4,
-  threads = threading(2),
-  backend = "cmdstanr",     # allows for threading
-  control = list(adapt_delta = 0.99, max_treedepth=10), # Slightly stricter controls for convergence
-  file = "fits/base_fit_k10"
+  threads = threading(4),
+  backend = "cmdstanr",
+  control = list(adapt_delta = 0.99, max_treedepth = 10),
+  file = "fits/base_fit_marking_type_k10"
 )
 
-
+add_criterion(fit, "loo")
 
 ### FORMULA ###
+tensor_formula_k10 <- bf(
+  has_levelled ~
+    s(date, k = 10) +
+    marking_type +
+    s(date, by = marking_type, k = 10) +
+    log_freq + t2(date, log_freq, k = 10) +
 
-base_formula_tensor_product <- bf(
-  has_levelled ~ 
-    s(date, k = 4) +
-    is_bipartite +
-    s(date, by = is_bipartite, k = 4) +
-    element_type + s(date, by = element_type, k = 4) +
-    element_type * is_bipartite +
-    log_freq + t2(date, log_freq, k = 4) + 
-    std_infl + s(date, by = std_infl, k = 4) + 
-    std_infl * element_type + 
-    (1|variety) + s(date, by = variety) + 
-    (1|lemma_std) +
-    (1|id),    
+    # NEW: Include BOTH the indicator and the continuous frequency
+    has_alt_pres + log_alt_pres_freq +
+    has_alt_past + log_alt_past_freq +
+
+    std_infl + s(date, by = std_infl, k = 10) +
+    std_infl * marking_type +
+    (1 | variety) + s(date, by = variety) +
+    (1 | lemma_std) +
+    (1 | id),
   family = bernoulli()
 )
 
 ### FITTING ###
-
 fit <- brm(
-  formula = base_formula_tensor_product,
+  formula = tensor_formula_k10,
   data = model_data,
   prior = priors,
   chains = 4,
-  iter = 6000,           # Increased iterations for complex random effects
-  warmup = 3000,
+  iter = 4000,
+  warmup = 2000,
   cores = 4,
-  threads = threading(2),
-  backend = "cmdstanr",     # allows for threading
-  control = list(adapt_delta = 0.99, max_treedepth=10), # Slightly stricter controls for convergence
-  file = "fits/base_fit_tensor_product"
+  threads = threading(4),
+  backend = "cmdstanr",
+  control = list(adapt_delta = 0.99, max_treedepth = 10),
+  file = "fits/tensor_fit_marking_type_k10"
 )
+
+add_criterion(fit, "loo")
+
+
+### FORMULA ###
+tensor_formula_k4 <- bf(
+  has_levelled ~
+    s(date, k = 4) +
+    marking_type +
+    s(date, by = marking_type, k = 4) +
+    log_freq + t2(date, log_freq, k = 4) +
+
+    # NEW: Include BOTH the indicator and the continuous frequency
+    has_alt_pres + log_alt_pres_freq +
+    has_alt_past + log_alt_past_freq +
+
+    std_infl + s(date, by = std_infl, k = 4) +
+    std_infl * marking_type +
+    (1 | variety) + s(date, by = variety) +
+    (1 | lemma_std) +
+    (1 | id),
+  family = bernoulli()
+)
+
+### FITTING ###
+fit <- brm(
+  formula = tensor_formula_k4,
+  data = model_data,
+  prior = priors,
+  chains = 4,
+  iter = 4000,
+  warmup = 2000,
+  cores = 4,
+  threads = threading(4),
+  backend = "cmdstanr",
+  control = list(adapt_delta = 0.99, max_treedepth = 10),
+  file = "fits/tensor_fit_marking_type_k4"
+)
+
+add_criterion(fit, "loo")
