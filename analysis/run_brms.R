@@ -19,7 +19,10 @@ lemma_lookup <- raw_data %>%
 raw_data <- raw_data %>%
   left_join(lemma_lookup, by = "lemma_id") %>%
   mutate(lemma = lemma_rep) %>%
-  select(-lemma_rep)
+  select(-lemma_rep) %>%
+  group_by(lemma_id, std_infl) %>%
+  mutate(token_freq_avg = mean(form_freq_per_1000, na.rm = TRUE)) %>%
+  ungroup()
 
 
 # 2. Calculate Alternation Frequencies (Type Frequency by Variety)
@@ -74,7 +77,8 @@ base_model_data <- raw_data %>%
     target_alt_past_freq = if_else(element_type == "vowel", vowel_alternation_past_freq, cons_alternation_past_freq),
     has_alt_pres = if_else(!is.na(target_alt_pres_freq) & target_alt_pres_freq > 0, "yes", "no"),
     has_alt_past = if_else(!is.na(target_alt_past_freq) & target_alt_past_freq > 0, "yes", "no"),
-    log_freq = log(lemma_freq_per_1000 + 0.0001)
+    log_freq = log(lemma_freq_per_1000 + 0.0001),
+    log_token_freq = log(token_freq_avg + 0.0001)
   )
 
 # Step 3b: Calculate the GLOBAL means for centering (only for existing alternations)
@@ -109,7 +113,7 @@ model_data <- base_model_data %>%
     std_infl = as.factor(std_infl)
   ) %>%
   select(
-    lemma, lemma_std, date, log_freq,
+    lemma, lemma_std, date, log_freq, log_token_freq,
     has_alt_pres, log_alt_pres_freq,
     has_alt_past, log_alt_past_freq,
     marking_type, is_bipartite, element_type, has_levelled,
@@ -276,6 +280,44 @@ fit <- brm(
   backend = "cmdstanr",
   control = list(adapt_delta = 0.99, max_treedepth = 10),
   file = "fits/tensor_fit_marking_type_k4"
+)
+
+add_criterion(fit, "loo")
+
+
+### FORMULA ###
+tensor_formula_k10_token <- bf(
+  has_levelled ~
+    s(date, k = 10) +
+    marking_type +
+    s(date, by = marking_type, k = 10) +
+    log_token_freq + t2(date, log_token_freq, k = 10) +
+
+    # NEW: Include BOTH the indicator and the continuous frequency
+    has_alt_pres + log_alt_pres_freq +
+    has_alt_past + log_alt_past_freq +
+
+    std_infl + s(date, by = std_infl, k = 10) +
+    std_infl * marking_type +
+    (1 | variety) + s(date, by = variety) +
+    (1 | lemma_std) +
+    (1 | id),
+  family = bernoulli()
+)
+
+### FITTING ###
+fit <- brm(
+  formula = tensor_formula_k10_token,
+  data = model_data,
+  prior = priors,
+  chains = 4,
+  iter = 4000,
+  warmup = 2000,
+  cores = 4,
+  threads = threading(4),
+  backend = "cmdstanr",
+  control = list(adapt_delta = 0.99, max_treedepth = 10),
+  file = "fits/tensor_fit_marking_type_k10_token"
 )
 
 add_criterion(fit, "loo")
