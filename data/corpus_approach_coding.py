@@ -892,8 +892,8 @@ def run_pipeline(
 
     print(f"Saving {len(final_df)} coded rows to {output_file}...")
     final_df.to_csv(output_file, index=False)
-
     return final_df
 
 
-df = run_pipeline()
+if __name__ == "__main__":
+    df = run_pipeline()

@@ -1,0 +1,12 @@
+data/M001.json
+data/enhg_corpus/
+data/mhg_corpus/
+.Rproj.user
+figures/*.png
+fits/*.rds
+prop_hazards_verbs.Rproj
+.Rhistory
+.DS_Store
+*.pyc
+__pycache__/
+.vscode/*
