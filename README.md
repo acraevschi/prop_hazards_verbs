@@ -137,15 +137,19 @@ Once the data is verified and coded:
 
 1. **Fit Bayesian GAMM Models** (`analysis/run_brms.R`):
    - Fits the Bayesian Generalized Additive Mixed Models using `brms` and Stan (accounting for smooth temporal trajectories, interactive tensor products, random effects, and alternation controls).
-   - Serializes and saves the fitted model objects (`.rds`) directly into the `fits/` folder.
-   - **Configurable Options** (defaults: `--chains 4 --iter 4000 --cores 4 --threads 4 --adapt_delta 0.99`):
+   - Serializes and saves the fitted model objects (`.rds`) directly into the `fits/` folder, with LOO-CV attached.
+   - **Configurable Options** (defaults: `--chains 4 --iter 4000 --cores 4 --threads 2 --seed 97 --adapt_delta 0.99`):
    ```bash
-   # Run with default settings:
+   # Run with default settings (4 chains, 8 total CPU threads):
    Rscript analysis/run_brms.R
-
-   # Or customize sampler / hardware parameters:
-   Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 8 --threads 2
    ```
+
+   ```bash
+   # Force re-fitting of models that are already cached in fits/:
+   Rscript analysis/run_brms.R --overwrite
+   ```
+
+   > **Note on reproducibility**: `--seed` fixes the results because within-chain threading runs in static mode. If you change `--threads`, the partition of the log-likelihood sum changes, and the results move by a small amount.
 
 2. **MCMC Convergence Diagnostics** (`analysis/mcmc_convergence.R`):
    - Audits Stan sampler health across all 5 fitted models in `fits/` to verify reliable posterior exploration.
@@ -156,7 +160,7 @@ Once the data is verified and coded:
    - **Outputs**: `analysis/reports/mcmc_convergence_table.md` and `analysis/reports/mcmc_convergence.csv`.
 
 3. **LOO-CV Model Comparison, Hypothesis Tests & Publication Figures** (`analysis/analyze_models.Rmd`):
-   - Computes exact Leave-One-Out Cross-Validation (LOO-CV), evaluates Paul's Principle via evidence ratios and dynamic contrasts, extracts marginal effects, and exports publication figures to `figures/`.
+   - Computes Leave-One-Out Cross-Validation (PSIS-LOO), evaluates Paul's Principle via evidence ratios and dynamic contrasts, extracts marginal effects, and exports publication figures to `figures/`.
    ```bash
    Rscript -e "rmarkdown::render('analysis/analyze_models.Rmd')"
    ```

@@ -8,12 +8,18 @@
 #   --chains <int>         Number of MCMC chains [default: 4]
 #   --iter <int>           Total iterations per chain [default: 4000]
 #   --warmup <int>         Warmup iterations per chain [default: iter / 2 = 2000]
-#   --cores <int>          Number of CPU cores [default: 4]
-#   --threads <int>        Within-chain threads [default: 4]
+#   --cores <int>          Number of chains to run in parallel [default: 4]
+#   --threads <int>        Within-chain threads [default: 2]
+#   --seed <int>           Random seed [default: 97]
 #   --adapt_delta <num>    Target acceptance rate [default: 0.99]
 #   --max_treedepth <int>  Maximum NUTS tree depth [default: 10]
 #   --backend <str>        Stan backend ("cmdstanr" or "rstan") [default: "cmdstanr"]
+#   --overwrite, -o        Refit models that already exist in fits/ [default: FALSE]
 #   -h, --help             Show help message and exit
+#
+# Reproducibility: the seed fixes the results only because within-chain threading
+# runs in static mode (see `threading(..., static = TRUE)` below). Dynamic
+# scheduling changes the order of the floating-point reduction between runs.
 #
 # Model Suite Overview (Evaluated in Paper Table 2):
 # ------------------------------------------------------------------------------
@@ -34,75 +40,163 @@
 # ------------------------------------------------------------------------------
 # 0. CLI Argument Parsing
 # ------------------------------------------------------------------------------
-parse_cli_args <- function(cli_args) {
-  params <- list(
-    chains = 4,
-    iter = 4000,
-    warmup = NULL,
-    cores = 4,
-    threads = 4,
-    adapt_delta = 0.99,
-    max_treedepth = 10,
-    backend = "cmdstanr"
+# Option table: name -> default value and value type.
+CLI_DEFAULTS <- list(
+  chains = 4L,
+  iter = 4000L,
+  warmup = NULL,
+  cores = 4L,
+  threads = 2L,
+  seed = 97L,
+  adapt_delta = 0.99,
+  max_treedepth = 10L,
+  backend = "cmdstanr",
+  overwrite = FALSE
+)
+
+CLI_TYPES <- c(
+  chains = "int", iter = "int", warmup = "int", cores = "int",
+  threads = "int", seed = "int", adapt_delta = "num",
+  max_treedepth = "int", backend = "str", overwrite = "flag"
+)
+
+print_cli_help <- function() {
+  cat("Usage: Rscript analysis/run_brms.R [options]\n\n")
+  cat("Options:\n")
+  cat("  --chains <int>         Number of MCMC chains [default: 4]\n")
+  cat("  --iter <int>           Total iterations per chain [default: 4000]\n")
+  cat("  --warmup <int>         Warmup iterations per chain [default: iter / 2]\n")
+  cat("  --cores <int>          Number of chains to run in parallel [default: 4]\n")
+  cat("  --threads <int>        Within-chain threads [default: 2]\n")
+  cat("  --seed <int>           Random seed [default: 97]\n")
+  cat("  --adapt_delta <num>    Target acceptance rate [default: 0.99]\n")
+  cat("  --max_treedepth <int>  Maximum NUTS tree depth [default: 10]\n")
+  cat("  --backend <str>        Stan backend (cmdstanr or rstan) [default: cmdstanr]\n")
+  cat("  --overwrite, -o        Refit models that already exist in fits/ [default: FALSE]\n")
+  cat("  -h, --help             Show this help message and exit\n\n")
+  cat("Booleans accept true/false, yes/no, and 1/0. You can also write\n")
+  cat("--no-overwrite.\n\n")
+}
+
+# Convert one raw string to the type that the option needs. Stop on bad input.
+coerce_cli_value <- function(name, raw, type) {
+  if (type == "str") {
+    return(raw)
+  }
+  if (type == "flag") {
+    truthy <- c("true", "t", "yes", "y", "1")
+    falsy <- c("false", "f", "no", "n", "0")
+    low <- tolower(raw)
+    if (low %in% truthy) return(TRUE)
+    if (low %in% falsy) return(FALSE)
+    stop(sprintf("Option --%s needs true or false, but got '%s'.", name, raw),
+         call. = FALSE)
+  }
+  value <- suppressWarnings(
+    if (type == "int") as.integer(raw) else as.numeric(raw)
   )
-  
+  if (is.na(value)) {
+    stop(sprintf("Option --%s needs a number, but got '%s'.", name, raw),
+         call. = FALSE)
+  }
+  value
+}
+
+parse_cli_args <- function(cli_args) {
+  params <- CLI_DEFAULTS
+  flag_words <- c("true", "t", "yes", "y", "1", "false", "f", "no", "n", "0")
+
   i <- 1
   while (i <= length(cli_args)) {
     arg <- cli_args[i]
+
     if (arg %in% c("-h", "--help")) {
-      cat("Usage: Rscript analysis/run_brms.R [options]\n\n")
-      cat("Options:\n")
-      cat("  --chains <int>         Number of MCMC chains [default: 4]\n")
-      cat("  --iter <int>           Total iterations per chain [default: 4000]\n")
-      cat("  --warmup <int>         Warmup iterations per chain [default: iter / 2]\n")
-      cat("  --cores <int>          Number of CPU cores [default: 4]\n")
-      cat("  --threads <int>        Within-chain threads [default: 4]\n")
-      cat("  --adapt_delta <num>    Target acceptance rate [default: 0.99]\n")
-      cat("  --max_treedepth <int>  Maximum NUTS tree depth [default: 10]\n")
-      cat("  --backend <str>        Stan backend (cmdstanr or rstan) [default: cmdstanr]\n")
-      cat("  -h, --help             Show this help message and exit\n\n")
+      print_cli_help()
       quit(status = 0)
-    } else if (grepl("^--chains=", arg)) {
-      params$chains <- as.integer(sub("^--chains=", "", arg))
-    } else if (arg == "--chains" && i < length(cli_args)) {
-      i <- i + 1; params$chains <- as.integer(cli_args[i])
-    } else if (grepl("^--iter=", arg)) {
-      params$iter <- as.integer(sub("^--iter=", "", arg))
-    } else if (arg == "--iter" && i < length(cli_args)) {
-      i <- i + 1; params$iter <- as.integer(cli_args[i])
-    } else if (grepl("^--warmup=", arg)) {
-      params$warmup <- as.integer(sub("^--warmup=", "", arg))
-    } else if (arg == "--warmup" && i < length(cli_args)) {
-      i <- i + 1; params$warmup <- as.integer(cli_args[i])
-    } else if (grepl("^--cores=", arg)) {
-      params$cores <- as.integer(sub("^--cores=", "", arg))
-    } else if (arg == "--cores" && i < length(cli_args)) {
-      i <- i + 1; params$cores <- as.integer(cli_args[i])
-    } else if (grepl("^--threads=", arg)) {
-      params$threads <- as.integer(sub("^--threads=", "", arg))
-    } else if (arg == "--threads" && i < length(cli_args)) {
-      i <- i + 1; params$threads <- as.integer(cli_args[i])
-    } else if (grepl("^--adapt_delta=", arg)) {
-      params$adapt_delta <- as.numeric(sub("^--adapt_delta=", "", arg))
-    } else if (arg == "--adapt_delta" && i < length(cli_args)) {
-      i <- i + 1; params$adapt_delta <- as.numeric(cli_args[i])
-    } else if (grepl("^--max_treedepth=", arg)) {
-      params$max_treedepth <- as.integer(sub("^--max_treedepth=", "", arg))
-    } else if (arg == "--max_treedepth" && i < length(cli_args)) {
-      i <- i + 1; params$max_treedepth <- as.integer(cli_args[i])
-    } else if (grepl("^--backend=", arg)) {
-      params$backend <- sub("^--backend=", "", arg)
-    } else if (arg == "--backend" && i < length(cli_args)) {
-      i <- i + 1; params$backend <- cli_args[i]
     }
+    if (arg == "-o") {
+      arg <- "--overwrite"
+    }
+    if (!grepl("^--[A-Za-z]", arg)) {
+      stop(sprintf("Unexpected argument '%s'. Run with --help for the options.", arg),
+           call. = FALSE)
+    }
+
+    # Split the --name=value form from the --name value form.
+    inline <- grepl("=", arg, fixed = TRUE)
+    name <- if (inline) sub("^--([^=]+)=.*$", "\\1", arg) else sub("^--", "", arg)
+    raw <- if (inline) sub("^--[^=]+=", "", arg) else NA_character_
+
+    # Handle the --no-<flag> form.
+    negated <- FALSE
+    if (!name %in% names(CLI_TYPES) && grepl("^no-", name)) {
+      stripped <- sub("^no-", "", name)
+      if (stripped %in% names(CLI_TYPES) && CLI_TYPES[[stripped]] == "flag") {
+        name <- stripped
+        negated <- TRUE
+      }
+    }
+
+    if (!name %in% names(CLI_TYPES)) {
+      stop(sprintf("Unknown option '--%s'. Run with --help for the options.", name),
+           call. = FALSE)
+    }
+    type <- CLI_TYPES[[name]]
+
+    if (negated) {
+      if (inline) {
+        stop(sprintf("Option '--no-%s' does not take a value.", name), call. = FALSE)
+      }
+      params[[name]] <- FALSE
+      i <- i + 1
+      next
+    }
+
+    if (!inline) {
+      if (type == "flag") {
+        # A bare flag means TRUE, but --flag true and --flag false also work.
+        nxt <- if (i < length(cli_args)) cli_args[i + 1] else NA_character_
+        if (!is.na(nxt) && tolower(nxt) %in% flag_words) {
+          i <- i + 1
+          raw <- nxt
+        } else {
+          raw <- "true"
+        }
+      } else {
+        if (i >= length(cli_args)) {
+          stop(sprintf("Option --%s needs a value.", name), call. = FALSE)
+        }
+        i <- i + 1
+        raw <- cli_args[i]
+      }
+    }
+
+    params[[name]] <- coerce_cli_value(name, raw, type)
     i <- i + 1
   }
-  
+
   if (is.null(params$warmup)) {
     params$warmup <- as.integer(params$iter / 2)
   }
-  
-  return(params)
+
+  # Reject configurations that Stan cannot run.
+  if (params$chains < 1) stop("--chains must be 1 or more.", call. = FALSE)
+  if (params$cores < 1) stop("--cores must be 1 or more.", call. = FALSE)
+  if (params$threads < 1) stop("--threads must be 1 or more.", call. = FALSE)
+  if (params$iter < 2) stop("--iter must be 2 or more.", call. = FALSE)
+  if (params$warmup < 1 || params$warmup >= params$iter) {
+    stop("--warmup must be 1 or more and less than --iter.", call. = FALSE)
+  }
+  if (params$adapt_delta <= 0 || params$adapt_delta >= 1) {
+    stop("--adapt_delta must be between 0 and 1.", call. = FALSE)
+  }
+  if (params$max_treedepth < 1) stop("--max_treedepth must be 1 or more.", call. = FALSE)
+  if (!params$backend %in% c("cmdstanr", "rstan")) {
+    stop(sprintf("--backend must be cmdstanr or rstan, but got '%s'.", params$backend),
+         call. = FALSE)
+  }
+
+  params
 }
 
 cfg <- parse_cli_args(commandArgs(trailingOnly = TRUE))
@@ -111,9 +205,12 @@ cat("===========================================================================
 cat("Bayesian GAMM Estimation: Hermann Paul's Principle in High German Strong Verbs\n")
 cat("==============================================================================\n")
 cat(sprintf("MCMC Configuration:\n"))
-cat(sprintf(" - Chains: %d | Iterations: %d | Warmup: %d\n", cfg$chains, cfg$iter, cfg$warmup))
-cat(sprintf(" - Cores: %d  | Threads/Chain: %d | Backend: %s\n", cfg$cores, cfg$threads, cfg$backend))
+cat(sprintf(" - Chains: %d | Iterations: %d | Warmup: %d | Seed: %d\n", cfg$chains, cfg$iter, cfg$warmup, cfg$seed))
+cat(sprintf(" - Parallel chains: %d | Threads/Chain: %d | Total CPUs: %d | Backend: %s\n",
+            min(cfg$chains, cfg$cores), cfg$threads,
+            min(cfg$chains, cfg$cores) * cfg$threads, cfg$backend))
 cat(sprintf(" - adapt_delta: %.3f | max_treedepth: %d\n", cfg$adapt_delta, cfg$max_treedepth))
+cat(sprintf(" - Overwrite existing fits: %s\n", if (cfg$overwrite) "TRUE (--overwrite)" else "FALSE (skip existing)"))
 cat("==============================================================================\n\n")
 
 suppressPackageStartupMessages({
@@ -134,7 +231,11 @@ raw_data <- read.csv("data/coded_output.csv", stringsAsFactors = FALSE)
 lemma_lookup <- raw_data %>%
   filter(!is.na(lemma), lemma != "") %>%
   group_by(lemma_id) %>%
-  slice_min(nchar(lemma), n = 1, with_ties = FALSE) %>%
+  # Sort on the string as well as its length. Without the second key the tie
+  # between two lemmas of equal length breaks on row order, and the label
+  # changes between runs.
+  arrange(nchar(lemma), lemma, .by_group = TRUE) %>%
+  slice(1) %>%
   select(lemma_id, lemma_rep = lemma) %>%
   ungroup()
 
@@ -196,8 +297,13 @@ base_model_data <- raw_data %>%
     element_type = if_else(element_type_raw == "vowel_leveled_any", "vowel", "consonant"),
     target_alt_pres_freq = if_else(element_type == "vowel", vowel_alternation_pres_freq, cons_alternation_pres_freq),
     target_alt_past_freq = if_else(element_type == "vowel", vowel_alternation_past_freq, cons_alternation_past_freq),
-    has_alt_pres = if_else(!is.na(target_alt_pres_freq) & target_alt_pres_freq > 0, "yes", "no"),
-    has_alt_past = if_else(!is.na(target_alt_past_freq) & target_alt_past_freq > 0, "yes", "no"),
+    # calc_type_freq counts distinct lemmas per alternation pattern, so the
+    # frequency is 1 or more whenever the join found a match. A `> 0` test would
+    # never be false. These two variables record whether corpus_approach_coding.py
+    # wrote an alternation pair for the row, which is "no" when the paradigm has
+    # no alternation in that contrast, and also "no" when the anchor is missing.
+    has_alt_pres = if_else(!is.na(target_alt_pres_freq), "yes", "no"),
+    has_alt_past = if_else(!is.na(target_alt_past_freq), "yes", "no"),
     log_freq = log(lemma_freq_per_1000 + 0.0001),
     log_token_freq = log(token_freq_avg + 0.0001)
   )
@@ -252,7 +358,55 @@ priors <- c(
 
 # Standardized MCMC sampler settings
 mcmc_control <- list(adapt_delta = cfg$adapt_delta, max_treedepth = cfg$max_treedepth)
-threads <- threading(cfg$threads)
+
+# static = TRUE fixes the grainsize and the partition of the reduce_sum call.
+# Without it the threads sum the log-likelihood in a different order on each run
+# and --seed does not reproduce the fit.
+threads <- threading(cfg$threads, static = TRUE)
+
+# Ensure fits/ directory exists
+dir.create("fits", showWarnings = FALSE, recursive = TRUE)
+
+# Fit a model, or load it from fits/ when it is already there.
+# --overwrite is the only way to refit an existing model.
+#
+# LOO-CV is the PSIS approximation from loo(). Read the Pareto-k diagnostics in
+# analyze_models.Rmd before you trust the model comparison.
+fit_and_cache_model <- function(formula, data, priors, cfg, threads, mcmc_control,
+                                file_base, model_title) {
+  cat(sprintf("\n%s...\n", model_title))
+  rds_path <- paste0(file_base, ".rds")
+
+  if (file.exists(rds_path) && !cfg$overwrite) {
+    cat(sprintf("File '%s' already exists, skipping. Run with --overwrite to refit it.\n", rds_path))
+    fit <- readRDS(rds_path)
+    if (!"loo" %in% names(fit$criteria)) {
+      cat(sprintf("Adding LOO-CV to %s...\n", rds_path))
+      fit <- add_criterion(fit, "loo", file = file_base)
+    }
+    return(fit)
+  }
+
+  if (file.exists(rds_path)) {
+    cat(sprintf("File '%s' exists, refitting as requested (--overwrite)...\n", rds_path))
+  }
+
+  # No `file` argument here. brms would load the cached fit instead of running
+  # the sampler, which would cancel --overwrite.
+  fit <- brm(
+    formula = formula,
+    data = data,
+    prior = priors,
+    chains = cfg$chains, iter = cfg$iter, warmup = cfg$warmup,
+    cores = cfg$cores, threads = threads, backend = cfg$backend,
+    seed = cfg$seed,
+    control = mcmc_control
+  )
+
+  # Save before the LOO step, so that a completed fit is never lost.
+  saveRDS(fit, rds_path)
+  add_criterion(fit, "loo", file = file_base)
+}
 
 # ------------------------------------------------------------------------------
 # 4. Model Estimation
@@ -261,7 +415,6 @@ threads <- threading(cfg$threads)
 # ------------------------------------------------------------------------------
 # Model 1: Smooth Interaction (k=4) [Appendix Baseline]
 # ------------------------------------------------------------------------------
-cat("\n[1/5] Estimating Model 1: Smooth Interaction GAMM (k=4)...\n")
 formula_base_k4 <- bf(
   has_levelled ~
     s(date, k = 4) +
@@ -272,27 +425,26 @@ formula_base_k4 <- bf(
     has_alt_past + log_alt_past_freq +
     std_infl + s(date, by = std_infl, k = 4) +
     std_infl * marking_type +
-    (1 | variety) + s(date, by = variety) +
+    (1 | variety) + s(date, by = variety, k = 4) +
     (1 | lemma_std) +
     (1 | id),
   family = bernoulli()
 )
 
-fit_base_k4 <- brm(
+fit_base_k4 <- fit_and_cache_model(
   formula = formula_base_k4,
   data = model_data,
-  prior = priors,
-  chains = cfg$chains, iter = cfg$iter, warmup = cfg$warmup,
-  cores = cfg$cores, threads = threads, backend = cfg$backend,
-  control = mcmc_control,
-  file = "fits/base_fit_marking_type"
+  priors = priors,
+  cfg = cfg,
+  threads = threads,
+  mcmc_control = mcmc_control,
+  file_base = "fits/base_fit_marking_type",
+  model_title = "[1/5] Estimating Model 1: Smooth Interaction GAMM (k=4) [Appendix Baseline]"
 )
-add_criterion(fit_base_k4, "loo")
 
 # ------------------------------------------------------------------------------
 # Model 2: Smooth Interaction (k=10)
 # ------------------------------------------------------------------------------
-cat("\n[2/5] Estimating Model 2: Smooth Interaction GAMM (k=10)...\n")
 formula_base_k10 <- bf(
   has_levelled ~
     s(date, k = 10) +
@@ -303,27 +455,26 @@ formula_base_k10 <- bf(
     has_alt_past + log_alt_past_freq +
     std_infl + s(date, by = std_infl, k = 10) +
     std_infl * marking_type +
-    (1 | variety) + s(date, by = variety) +
+    (1 | variety) + s(date, by = variety, k = 10) +
     (1 | lemma_std) +
     (1 | id),
   family = bernoulli()
 )
 
-fit_base_k10 <- brm(
+fit_base_k10 <- fit_and_cache_model(
   formula = formula_base_k10,
   data = model_data,
-  prior = priors,
-  chains = cfg$chains, iter = cfg$iter, warmup = cfg$warmup,
-  cores = cfg$cores, threads = threads, backend = cfg$backend,
-  control = mcmc_control,
-  file = "fits/base_fit_marking_type_k10"
+  priors = priors,
+  cfg = cfg,
+  threads = threads,
+  mcmc_control = mcmc_control,
+  file_base = "fits/base_fit_marking_type_k10",
+  model_title = "[2/5] Estimating Model 2: Smooth Interaction GAMM (k=10)"
 )
-add_criterion(fit_base_k10, "loo")
 
 # ------------------------------------------------------------------------------
 # Model 3: Primary Tensor Product GAMM (k=10) [Primary Model in Paper]
 # ------------------------------------------------------------------------------
-cat("\n[3/5] Estimating Model 3: Primary Tensor Product GAMM (k=10)...\n")
 formula_tensor_k10 <- bf(
   has_levelled ~
     s(date, k = 10) +
@@ -334,27 +485,26 @@ formula_tensor_k10 <- bf(
     has_alt_past + log_alt_past_freq +
     std_infl + s(date, by = std_infl, k = 10) +
     std_infl * marking_type +
-    (1 | variety) + s(date, by = variety) +
+    (1 | variety) + s(date, by = variety, k = 10) +
     (1 | lemma_std) +
     (1 | id),
   family = bernoulli()
 )
 
-fit_tensor_k10 <- brm(
+fit_tensor_k10 <- fit_and_cache_model(
   formula = formula_tensor_k10,
   data = model_data,
-  prior = priors,
-  chains = cfg$chains, iter = cfg$iter, warmup = cfg$warmup,
-  cores = cfg$cores, threads = threads, backend = cfg$backend,
-  control = mcmc_control,
-  file = "fits/tensor_fit_marking_type_k10"
+  priors = priors,
+  cfg = cfg,
+  threads = threads,
+  mcmc_control = mcmc_control,
+  file_base = "fits/tensor_fit_marking_type_k10",
+  model_title = "[3/5] Estimating Model 3: Primary Tensor Product GAMM (k=10) [Primary Model in Paper]"
 )
-add_criterion(fit_tensor_k10, "loo")
 
 # ------------------------------------------------------------------------------
 # Model 4: Tensor Product GAMM (k=4) [Sensitivity Check on Basis Dimension]
 # ------------------------------------------------------------------------------
-cat("\n[4/5] Estimating Model 4: Tensor Product GAMM (k=4)...\n")
 formula_tensor_k4 <- bf(
   has_levelled ~
     s(date, k = 4) +
@@ -365,27 +515,26 @@ formula_tensor_k4 <- bf(
     has_alt_past + log_alt_past_freq +
     std_infl + s(date, by = std_infl, k = 4) +
     std_infl * marking_type +
-    (1 | variety) + s(date, by = variety) +
+    (1 | variety) + s(date, by = variety, k = 4) +
     (1 | lemma_std) +
     (1 | id),
   family = bernoulli()
 )
 
-fit_tensor_k4 <- brm(
+fit_tensor_k4 <- fit_and_cache_model(
   formula = formula_tensor_k4,
   data = model_data,
-  prior = priors,
-  chains = cfg$chains, iter = cfg$iter, warmup = cfg$warmup,
-  cores = cfg$cores, threads = threads, backend = cfg$backend,
-  control = mcmc_control,
-  file = "fits/tensor_fit_marking_type_k4"
+  priors = priors,
+  cfg = cfg,
+  threads = threads,
+  mcmc_control = mcmc_control,
+  file_base = "fits/tensor_fit_marking_type_k4",
+  model_title = "[4/5] Estimating Model 4: Tensor Product GAMM (k=4) [Sensitivity Check on Basis Dimension]"
 )
-add_criterion(fit_tensor_k4, "loo")
 
 # ------------------------------------------------------------------------------
 # Model 5: Tensor Product with Token Frequency (k=10) [Sensitivity Check on Frequency]
 # ------------------------------------------------------------------------------
-cat("\n[5/5] Estimating Model 5: Tensor Product with Token Frequency (k=10)...\n")
 formula_tensor_token_k10 <- bf(
   has_levelled ~
     s(date, k = 10) +
@@ -396,21 +545,21 @@ formula_tensor_token_k10 <- bf(
     has_alt_past + log_alt_past_freq +
     std_infl + s(date, by = std_infl, k = 10) +
     std_infl * marking_type +
-    (1 | variety) + s(date, by = variety) +
+    (1 | variety) + s(date, by = variety, k = 10) +
     (1 | lemma_std) +
     (1 | id),
   family = bernoulli()
 )
 
-fit_tensor_token_k10 <- brm(
+fit_tensor_token_k10 <- fit_and_cache_model(
   formula = formula_tensor_token_k10,
   data = model_data,
-  prior = priors,
-  chains = cfg$chains, iter = cfg$iter, warmup = cfg$warmup,
-  cores = cfg$cores, threads = threads, backend = cfg$backend,
-  control = mcmc_control,
-  file = "fits/tensor_fit_marking_type_k10_token"
+  priors = priors,
+  cfg = cfg,
+  threads = threads,
+  mcmc_control = mcmc_control,
+  file_base = "fits/tensor_fit_marking_type_k10_token",
+  model_title = "[5/5] Estimating Model 5: Tensor Product with Token Frequency (k=10) [Sensitivity Check on Frequency]"
 )
-add_criterion(fit_tensor_token_k10, "loo")
 
 cat("\nAll 5 models fitted/verified and cached in fits/ successfully!\n")

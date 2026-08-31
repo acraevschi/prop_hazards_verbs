@@ -51,11 +51,12 @@ analysis/
     - `marking_type`: 3-level factor (`vowel_unipartite`, `vowel_bipartite`, `consonant_bipartite`) to avoid structural collinearity.
     - Smooth temporal trends: $s(\text{date}, k)$ and $s(\text{date}, \text{by}=\text{marking\_type}, k)$.
     - Alternation controls: `has_alt_pres`, `log_alt_pres_freq`, `has_alt_past`, `log_alt_past_freq`.
-    - Random effects: `(1 | variety) + s(date, by = variety)`, `(1 | lemma_std)`, `(1 | id)`.
+    - Random effects: `(1 | variety) + s(date, by = variety, k)`, `(1 | lemma_std)`, `(1 | id)`.
+  - **LOO-CV**: Each fit stores Leave-One-Out Cross-Validation in `fit$criteria$loo`. This is the PSIS approximation from `loo()`. Read the Pareto-k diagnostics before you trust the model comparison.
   - **Outputs**: Serialized `.rds` model objects in `fits/` and prepared modeling data in `analysis/data_for_analysis.csv`.
 
 * **`analyze_models.Rmd`**:
-  - **Purpose**: Comprehensive post-processing, exact Leave-One-Out Cross-Validation (LOO-CV), MCMC convergence tables, hypothesis testing (evidence ratios), and publication figure generation.
+  - **Purpose**: Comprehensive post-processing, Leave-One-Out Cross-Validation (PSIS-LOO), MCMC convergence tables, hypothesis testing (evidence ratios), and publication figure generation.
   - **Outputs**: Publication-ready PDF figures in `figures/` and rendered HTML report `analyze_models.html`.
 
 ---
@@ -102,8 +103,11 @@ To reproduce the analysis and audit reports from scratch:
 python analysis/attrition_diagnostics.py
 python analysis/target_sensitivity.py
 
-# 2. Fit Bayesian GAMM Models (runs Stan MCMC chains in parallel)
-Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 4 --threads 4
+# 2. Fit Bayesian GAMM Models (4 chains x 2 threads = 8 total CPU threads)
+Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 4 --threads 2 --seed 97
+
+# (Optional) Force re-estimation of models that are already cached in fits/:
+# Rscript analysis/run_brms.R --overwrite
 
 # 3. Generate MCMC Convergence Summary Table
 Rscript analysis/mcmc_convergence.R

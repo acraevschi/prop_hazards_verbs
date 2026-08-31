@@ -53,7 +53,6 @@ ggplot(model_data, aes(x = date)) +
 # Load the three new models
 fit_base   <- readRDS("../fits/base_fit_marking_type.rds")
 fit_k10    <- readRDS("../fits/base_fit_marking_type_k10.rds")
-fit_k10_s  <- readRDS("../fits/base_fit_marking_type_freq_standardized_k10.rds")
 fit_tensor <- readRDS("../fits/tensor_fit_marking_type_k10.rds")
 fit_tensor_k4 <- readRDS("../fits/tensor_fit_marking_type_k4.rds")
 fit_tensor_k10_token <- readRDS("../fits/tensor_fit_marking_type_k10_token.rds")
@@ -62,7 +61,6 @@ fit_tensor_k10_token <- readRDS("../fits/tensor_fit_marking_type_k10_token.rds")
 models <- list(
   "Base (k=4)" = fit_base,
   "Base (k=10)" = fit_k10,
-  #"Base (k=10), Freq. St." = fit_k10_s,
   "Tensor (k=10)" = fit_tensor,
   "Tensor (k=4)" = fit_tensor_k4,
   "Tensor (k=10) Token" = fit_tensor_k10_token
@@ -76,7 +74,6 @@ loo_list <- map(models, loo)
 
 comparison <- loo_compare(
   fit_k10, 
-  #fit_k10_s,
   fit_base,
   fit_tensor,
   fit_tensor_k4,
@@ -311,7 +308,6 @@ ggsave(
 ```{r}
 conditional_effects(fit_base, effects = "date:marking_type")
 conditional_effects(fit_k10, effects = "date:marking_type")
-conditional_effects(fit_k10_s, effects = "date:marking_type")
 conditional_effects(fit_tensor, effects = "date:marking_type")
 ```
 
@@ -458,7 +454,7 @@ plot_comparisons(
 ```{r}
 # Extract conditional effects for the continuous variables
 ce_freqs <- conditional_effects(
-  fit_k10_s, 
+  fit_tensor, 
   effects = c("log_freq", "log_alt_pres_freq", "log_alt_past_freq")
 )
 
@@ -502,7 +498,7 @@ p_alt_past
 ```{r}
 # Extract the interaction between marking type and inflectional slot
 ce_interaction <- conditional_effects(
-  fit_k10_s, 
+  fit_tensor, 
   effects = "marking_type:std_infl"
 )
 
