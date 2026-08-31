@@ -45,7 +45,11 @@ prop_hazards_verbs/
 │   ├── data_for_analysis.csv                <- Reshaped dataset with predictors and marking types
 │   ├── run_brms.R                           <- Step 5: Fits Bayesian GAMMs via brms / Stan
 │   ├── analyze_models.Rmd                   <- Step 6: LOO-CV comparison, hypothesis testing, plots
-│   └── check_alternation_patterns.ipynb     <- Diagnostic inspection of alternation patterns
+│   ├── mcmc_convergence.R                  <- MCMC convergence diagnostics table across 5 fits
+│   ├── attrition_diagnostics.py             <- Lemma/token attrition & sound-change filter diagnostics
+│   ├── target_sensitivity.py                <- Double robustness check for late ENHG target definitions
+│   ├── check_alternation_patterns.ipynb     <- Diagnostic inspection of alternation patterns
+│   └── reports/                             <- Diagnostic audit & convergence reports (.md, .csv)
 │
 ├── fits/                                    <- Serialized Bayesian model objects (.rds)
 ├── figures/                                 <- Publication-ready plots & figures (.pdf, .png)
@@ -98,22 +102,72 @@ python data/normalize_data.py
 python data/corpus_approach_coding.py
 ```
 
-### Stage 5: Bayesian Statistical Modeling & Analysis
-```bash
-# Fit Bayesian GAMM models using brms / Stan (saved to fits/)
-Rscript analysis/run_brms.R
+### Stage 5: Data & Target Diagnostics (Pre-Modeling Audits)
 
-# Render model comparisons, hypothesis checks, and publication figures
-Rscript -e "rmarkdown::render('analysis/analyze_models.Rmd')"
-```
+Before fitting the statistical models, run the diagnostic tools to audit data retention, phonological sound-change filtering, and target state stability:
+
+1. **Anchor & Target Attrition Diagnostics** (`analysis/attrition_diagnostics.py`):
+   - **Purpose**: Audits the longitudinal data pipeline from raw texts (~1050–1650) to the final GAMM dataset.
+   - **What it tracks**:
+     - *Lemma Attrition*: Traces unique lemmas from raw ReM (MHG) and ReF (ENHG) through DSU unification, frequency filtering ($> 10$), pre-1200 MHG start-state anchoring, and final GAMM modeling.
+     - *Token Attrition*: Quantifies tokens dropped due to unanchored baselines versus analyzable past-tense tokens.
+     - *Sound Change vs. Leveling*: Audits the phonological filter (`vowel_changes.csv`), reporting how many transitions represent regular dialectal sound changes (e.g. UG *uo* > *u*, CG *î* > *ei*) rather than genuine analogical leveling.
+   - **Command**:
+     ```bash
+     python analysis/attrition_diagnostics.py
+     ```
+   - **Outputs**: `analysis/reports/attrition_report.md` and `analysis/reports/attrition_summary.csv`.
+
+2. **Target State Sensitivity Analysis (Double Robustness Check)** (`analysis/target_sensitivity.py`):
+   - **Purpose**: Verifies that the operationalization of each verb's teleological target state (its morphological endpoint by the end of ENHG) is not biased by varying document survival dates.
+   - **What it evaluates**:
+     - Compares the baseline target (`max(date)` per lemma) against two late-text regimes:
+       - *Variant 1 (Strict Late Subset)*: Only includes lemmas attested in texts dated $\ge 1500$.
+       - *Variant 2 (Hybrid Fallback)*: Prioritizes texts dated $\ge 1500$ when available, falling back to $\max(\text{date})$ for lemmas whose records cease earlier.
+     - Re-codes leveling outcomes across all past-tense tokens to measure concordance and label stability.
+   - **Command**:
+     ```bash
+     python analysis/target_sensitivity.py
+     ```
+   - **Outputs**: `analysis/reports/target_sensitivity_report.md` and `analysis/reports/target_sensitivity_summary.csv`.
+
+### Stage 6: Bayesian Statistical Modeling & Evaluation
+
+Once the data is verified and coded:
+
+1. **Fit Bayesian GAMM Models** (`analysis/run_brms.R`):
+   - Fits the Bayesian Generalized Additive Mixed Models using `brms` and Stan (accounting for smooth temporal trajectories, interactive tensor products, random effects, and alternation controls).
+   - Serializes and saves the fitted model objects (`.rds`) directly into the `fits/` folder.
+   - **Configurable Options** (defaults: `--chains 4 --iter 4000 --cores 4 --threads 4 --adapt_delta 0.99`):
+   ```bash
+   # Run with default settings:
+   Rscript analysis/run_brms.R
+
+   # Or customize sampler / hardware parameters:
+   Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 8 --threads 2
+   ```
+
+2. **MCMC Convergence Diagnostics** (`analysis/mcmc_convergence.R`):
+   - Audits Stan sampler health across all 5 fitted models in `fits/` to verify reliable posterior exploration.
+   - Evaluates: $\max(\hat{R})$, percentage of parameters with $\hat{R} \le 1.01$, minimum Bulk-ESS, minimum Tail-ESS, divergent transitions, and maximum treedepth hits.
+   ```bash
+   Rscript analysis/mcmc_convergence.R
+   ```
+   - **Outputs**: `analysis/reports/mcmc_convergence_table.md` and `analysis/reports/mcmc_convergence.csv`.
+
+3. **LOO-CV Model Comparison, Hypothesis Tests & Publication Figures** (`analysis/analyze_models.Rmd`):
+   - Computes exact Leave-One-Out Cross-Validation (LOO-CV), evaluates Paul's Principle via evidence ratios and dynamic contrasts, extracts marginal effects, and exports publication figures to `figures/`.
+   ```bash
+   Rscript -e "rmarkdown::render('analysis/analyze_models.Rmd')"
+   ```
 
 ---
 
 ## 🧪 Running Unit Tests
 
-To run the unit tests verifying root extraction phonotactic guards and equivalence functions:
+To run the unit tests verifying root extraction phonotactic guards, Ablaut classes (I-VII), Grammatischer Wechsel pairs, and equivalence functions:
 ```bash
-python -m unittest discover -s tests
+python -m unittest discover -s tests -v
 ```
 
 ---

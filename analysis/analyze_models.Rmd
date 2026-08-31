@@ -53,6 +53,7 @@ ggplot(model_data, aes(x = date)) +
 # Load the three new models
 fit_base   <- readRDS("../fits/base_fit_marking_type.rds")
 fit_k10    <- readRDS("../fits/base_fit_marking_type_k10.rds")
+fit_k10_s  <- readRDS("../fits/base_fit_marking_type_freq_standardized_k10.rds")
 fit_tensor <- readRDS("../fits/tensor_fit_marking_type_k10.rds")
 fit_tensor_k4 <- readRDS("../fits/tensor_fit_marking_type_k4.rds")
 fit_tensor_k10_token <- readRDS("../fits/tensor_fit_marking_type_k10_token.rds")
@@ -87,6 +88,45 @@ comparison <- loo_compare(
 ```{r}
 print(comparison, simplify = FALSE)
 ```
+
+# MCMC Convergence Diagnostics
+
+```{r mcmc-diagnostics}
+# Extract convergence diagnostics across the 5 models
+mcmc_diag_list <- map2_dfr(models, names(models), function(fit, m_name) {
+  stan_fit <- fit$fit
+  divs <- rstan::get_num_divergent(stan_fit)
+  max_td <- rstan::get_num_max_treedepth(stan_fit)
+  
+  rhats <- brms::rhat(fit)
+  max_rhat <- max(rhats, na.rm = TRUE)
+  pct_rhat_ok <- mean(rhats <= 1.01, na.rm = TRUE) * 100
+  
+  draws <- posterior::as_draws(fit)
+  d_sum <- posterior::summarise_draws(draws)
+  min_bulk <- min(d_sum$ess_bulk, na.rm = TRUE)
+  min_tail <- min(d_sum$ess_tail, na.rm = TRUE)
+  
+  data.frame(
+    Model = m_name,
+    Max_Rhat = round(max_rhat, 4),
+    Pct_Rhat_LE_1.01 = sprintf("%.1f%%", pct_rhat_ok),
+    Min_Bulk_ESS = round(min_bulk, 0),
+    Min_Tail_ESS = round(min_tail, 0),
+    Divergences = divs,
+    Max_Treedepth_Hits = max_td,
+    stringsAsFactors = FALSE
+  )
+})
+
+knitr::kable(
+  mcmc_diag_list,
+  col.names = c("Model", "Max R-hat", "R-hat <= 1.01 (%)", "Min Bulk-ESS", "Min Tail-ESS", "Divergences", "Max Treedepth Hits"),
+  caption = "MCMC Convergence Diagnostics Summary"
+)
+```
+
+
 
 
 # Fixed effects

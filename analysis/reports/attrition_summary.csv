@@ -1,0 +1,19 @@
+Metric Category,Metric,Value
+Lemma Attrition,Raw MHG Unique Lemmas,2945
+Lemma Attrition,Raw ENHG Unique Lemmas,1754
+Lemma Attrition,Unified Lemma Families (DSU),455
+Lemma Attrition,Normalized Lemma Families (>10 tokens),291
+Lemma Attrition,Lemmas Attested Pre-1200 (MHG),222
+Lemma Attrition,Lemmas Successfully Anchored Pre-1200,197
+Lemma Attrition,Lemmas Analyzed in Final GAMM,88
+Token Attrition,Raw Combined Tokens,299631
+Token Attrition,Normalized Strong Verb Tokens,150496
+Token Attrition,Past-Tense Coded Tokens,49616
+Token Attrition,Past-Tense Tokens with Baseline Anchor,48273
+Token Attrition,Past-Tense Tokens Dropped (No Baseline),1343
+Token Attrition,Final Analyzed Rows in GAMM Dataset,13184
+Leveling vs Sound Change,Transitions Explained by Sound Change Dict (Past),4051
+Leveling vs Sound Change,Transitions Explained by Sound Change Dict (Pres),772
+Leveling vs Sound Change,Total Transitions Filtered as Sound Change,4823
+Leveling vs Sound Change,Genuine Analogical Leveling Events (has_levelled=1),532
+Leveling vs Sound Change,Leveling Resistance Observations (has_levelled=0),12652

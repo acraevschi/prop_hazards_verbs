@@ -10,3 +10,14 @@ prop_hazards_verbs.Rproj
 *.pyc
 __pycache__/
 .vscode/*
+fits_old/base_fit_k10_corpus.rds
+fits_old/base_fit_k10_no_interaction.rds
+fits_old/base_fit_k10.rds
+fits_old/base_fit_marking_type_freq_standardized_k10.rds
+fits_old/base_fit_marking_type_k10.rds
+fits_old/base_fit_marking_type.rds
+fits_old/base_fit_tensor_product.rds
+fits_old/base_fit.rds
+fits_old/tensor_fit_marking_type_k4.rds
+fits_old/tensor_fit_marking_type_k10_token.rds
+fits_old/tensor_fit_marking_type_k10.rds
