@@ -21,3 +21,6 @@ fits_old/base_fit.rds
 fits_old/tensor_fit_marking_type_k4.rds
 fits_old/tensor_fit_marking_type_k10_token.rds
 fits_old/tensor_fit_marking_type_k10.rds
+
+# Handoff notes for agents. Local only.
+prompts/

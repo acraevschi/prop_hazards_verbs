@@ -72,9 +72,9 @@ When studying historical language change across 600 years (Middle High German ~1
 
 | Classification | Count | Description |
 | :--- | :---: | :--- |
-| **Transitions Filtered by Sound Change (Past)** | 4,051 | Past targets matching anchor via regular dialect sound change |
-| **Transitions Filtered by Sound Change (Pres)** | 772 | Present targets matching anchor via regular dialect sound change |
-| **Total Transitions Filtered as Sound Change** | 4,823 | Prevented from false positive leveling coding |
+| **Transitions Filtered by Sound Change (Past)** | 7,660 | Past targets matching anchor via regular dialect sound change |
+| **Transitions Filtered by Sound Change (Pres)** | 1,355 | Present targets matching anchor via regular dialect sound change |
+| **Total Transitions Filtered as Sound Change** | 9,015 | Prevented from false positive leveling coding |
 | **Genuine Analogical Leveling (`has_levelled = 1`)** | 532 | Token matched target and broke from historical anchor |
 | **Preserved / Resisted Leveling (`has_levelled = 0`)** | 12,652 | Token maintained historical anchor state |
 

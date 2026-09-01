@@ -25,6 +25,13 @@ def extract_strong_verbs(folder_path="enhg_corpus", output_file="enhg_corpus.csv
 
     results = []
     lemma_inflClass_map = defaultdict(set)  # Store inflClass for lemmas
+    # Every <token> in the processed subfolders, verb or not. This is the
+    # denominator for the per-1000 frequencies. It used to be len(results), the
+    # extracted verb tokens, which made the ENHG figures about 12 times larger
+    # than the MHG ones and put a step at the corpus boundary into log_freq.
+    # extract_mhg_data.py divides by the running word count of its corpus, so
+    # this matches it.
+    total_word_count = 0
 
     # List subfolders to process
     subfolders = ["ref-mlu", "ref-rub"]
@@ -57,7 +64,9 @@ def extract_strong_verbs(folder_path="enhg_corpus", output_file="enhg_corpus.csv
                         metadata[key.strip()] = val.strip()
 
             ns = {"": ""}
-            for token in root.findall(".//token", ns):
+            all_tokens = root.findall(".//token", ns)
+            total_word_count += len(all_tokens)
+            for token in all_tokens:
                 token_id = token.get("id")
                 tok_dipl = token.find("tok_dipl", ns)
                 tok_anno = token.find("tok_anno", ns)
@@ -143,8 +152,8 @@ def extract_strong_verbs(folder_path="enhg_corpus", output_file="enhg_corpus.csv
                 classes = lemma_inflClass_map[token["lemma"]]
                 token["inflClass"] = "|".join(sorted(classes))
 
-    # Compute frequencies
-    total_tokens = len(results)
+    # Compute frequencies. The numerators count the extracted verb tokens, as in
+    # extract_mhg_data.py; the denominator is the whole corpus.
     lemma_counts = defaultdict(int)
     form_counts = defaultdict(int)
 
@@ -157,9 +166,9 @@ def extract_strong_verbs(folder_path="enhg_corpus", output_file="enhg_corpus.csv
         form = token["norm"]
         token["lemma_count"] = lemma_counts[lemma]
         token["form_count"] = form_counts[form]
-        if total_tokens > 0:
-            token["lemma_freq_per_1000"] = (lemma_counts[lemma] / total_tokens) * 1000
-            token["form_freq_per_1000"] = (form_counts[form] / total_tokens) * 1000
+        if total_word_count > 0:
+            token["lemma_freq_per_1000"] = (lemma_counts[lemma] / total_word_count) * 1000
+            token["form_freq_per_1000"] = (form_counts[form] / total_word_count) * 1000
 
     results_df = pd.DataFrame(results)
     results_df = results_df[

@@ -252,10 +252,13 @@ def standardize_infl(val):
     return "Pres"
 
 
-def are_cons_equivalent(c1, c2):
+def are_cons_equivalent(c1, c2, protected=None):
     """
     Returns True if c1 and c2 are phonologically or orthographically equivalent
     (i.e., NOT Grammatischer Wechsel).
+
+    `protected` works as in are_vowels_equivalent: a contrast that the paradigm
+    carries in its own pre-1200 baseline is never equated away.
     """
     if pd.isna(c1) or pd.isna(c2):
         return False
@@ -265,16 +268,29 @@ def are_cons_equivalent(c1, c2):
     c2 = c2[-1] if len(c2) > 1 else c2
     if c1 == c2:
         return True
+    if protected and frozenset((c1, c2)) in protected:
+        return False
     for s in EQUIV_SETS:
         if c1 in s and c2 in s:
             return True
     return False
 
 
-def are_vowels_equivalent(v1, v2, variety, sc_dict):
+def are_vowels_equivalent(v1, v2, variety, sc_dict, protected=None):
     """
     Returns True if v1 == v2 OR if the transition v1->v2 (or v2->v1)
     is a regular sound change in the given variety.
+
+    `protected` holds the contrasts that the paradigm carries in its own
+    pre-1200 baseline, as a set of frozensets. A regular sound change must not
+    explain away a contrast that the baseline already established.
+
+    This guard is necessary because root extraction discards vowel length. MHG
+    long i and short i both become "i", so the diphthongization rule i -> ei
+    also licenses short i against ei. Short i against ei is the Class I ablaut
+    alternation, so without this guard the filter erases the very alternation
+    that the study measures. The same happens to Class II o ~ u in Central
+    German through the rule u -> o.
     """
     if pd.isna(v1) or pd.isna(v2):
         return False
@@ -285,7 +301,13 @@ def are_vowels_equivalent(v1, v2, variety, sc_dict):
     if v1 == v2:
         return True
 
-    # 2. Sound Change Lookup
+    # 2. Baseline contrast. The paradigm distinguishes these two roots, so no
+    # sound change may merge them. Identity above still wins, because a root
+    # cannot contrast with itself.
+    if protected and frozenset((v1, v2)) in protected:
+        return False
+
+    # 3. Sound Change Lookup
     # We check both directions because we might be comparing Anchor(MHG)->Obs(ENHG)
     # or Obs(ENHG)->Anchor(MHG).
 
@@ -639,17 +661,93 @@ def step_2_establish_baseline(df):
     return anchors_pivoted
 
 
-def step_3_establish_targets(df):
+def step_3_establish_targets(df, nhg_file="data/lemmas/nhg_targets.csv"):
     """
     Identifies the 'Teleological Target' (End State) for both Present and Past.
     Returns a DataFrame unique by (lemma_id, variety).
+
+    The target for a tense is the modal vowel and coda at the most recent ENHG
+    date where that tense gives an extractable form. The search starts at the
+    latest date and moves backwards only while the tense gives nothing.
+
+    Note that the search does not pool dates. Each target comes from one date,
+    which keeps the endpoint semantics of the target. A wider window would mix
+    forms from before and after the leveling event. The mode could then land on
+    the pre-leveling vowel, which inverts the direction of the comparison in
+    step 4: the cell that carries the change becomes uninformative, and the
+    cell that did not change gets coded as leveled.
+
+    target_pres_date, target_past_date, target_pres_n and target_past_n record
+    the date and the token count that each target rests on. A target from one
+    token is weak evidence. These columns make that visible to the diagnostics.
     """
     print("\n--- Step 3: Determining Teleological Targets (ENHG) ---")
+
+    # Modern German forms, where a curated one exists. These take priority over
+    # anything the corpus can offer, because the corpus is too thin at the late
+    # end to name an endpoint. The corpus rule stays as the fallback.
+    nhg = {}
+    if os.path.exists(nhg_file):
+        table = pd.read_csv(nhg_file, dtype=str).fillna("")
+        for _, entry in table.iterrows():
+            parsed = {}
+            for tense, column in (("pres", "nhg_infinitive"), ("past", "nhg_preterite")):
+                form = entry[column].strip()
+                if not form:
+                    continue
+                vowel, coda = extract_root_structure(
+                    df, form, corpus="ENHG", lemma_id=entry["lemma_id"]
+                )
+                if not pd.isna(vowel):
+                    parsed[tense] = (vowel, coda)
+            if parsed:
+                nhg[str(entry["lemma_id"])] = parsed
+        print(f"Loaded modern forms for {len(nhg)} lemmas from {nhg_file}.")
 
     enhg_df = df[df["corpus"] == "ENHG"].copy()
 
     # Storage for the winning forms
     target_data = []
+
+    def latest_mode(group, infl_values):
+        """
+        Walk the dates of one tense from latest to earliest. Return the vowel
+        and coda modes from the first date that gives a mode, with that date
+        and its token count.
+
+        The vowel and the coda are resolved separately. Extraction can fail for
+        one and not the other, and a shared date would discard the good one.
+        """
+        rows = group[group["std_infl"].isin(infl_values)]
+        if rows.empty:
+            return pd.NA, pd.NA, pd.NA, 0
+
+        vowel, coda = pd.NA, pd.NA
+        vowel_date, coda_date = pd.NA, pd.NA
+        vowel_n, coda_n = 0, 0
+
+        for date in sorted(rows["date"].dropna().unique(), reverse=True):
+            dated = rows[rows["date"] == date]
+
+            if pd.isna(vowel):
+                values = dated["extracted_vowel"].dropna()
+                mode = values.mode()
+                if not mode.empty:
+                    vowel, vowel_date, vowel_n = mode.iloc[0], date, len(values)
+
+            if pd.isna(coda):
+                values = dated["extracted_coda"].dropna()
+                mode = values.mode()
+                if not mode.empty:
+                    coda, coda_date, coda_n = mode.iloc[0], date, len(values)
+
+            if not pd.isna(vowel) and not pd.isna(coda):
+                break
+
+        # Report the date of the vowel target, or the coda target when the
+        # vowel gives nothing. The vowel drives the majority of the coding.
+        date = vowel_date if not pd.isna(vowel_date) else coda_date
+        return vowel, coda, date, max(vowel_n, coda_n)
 
     # Group by Lemma and Variety to process each verb's history
     # We want ONE row per verb with: Target_Pres, Target_Past
@@ -659,30 +757,20 @@ def step_3_establish_targets(df):
         if group.empty:
             continue
 
-        # 1. Establish the Target Date (Latest available date for this verb)
-        max_date = group["date"].max()
-        latest_rows = group[group["date"] == max_date]
+        t_pres_v, t_pres_c, pres_date, pres_n = latest_mode(group, ["Pres"])
+        t_past_v, t_past_c, past_date, past_n = latest_mode(
+            group, ["PastSg", "PastPl"]
+        )
 
-        # 2. Identify the Present Tense Target
-        # The most frequent form labeled 'Pres' at the latest date
-        pres_rows = latest_rows[latest_rows["std_infl"] == "Pres"]
-        if not pres_rows.empty:
-            pres_v_mode = pres_rows["extracted_vowel"].dropna().mode()
-            pres_c_mode = pres_rows["extracted_coda"].dropna().mode()
-            t_pres_v = pres_v_mode.iloc[0] if not pres_v_mode.empty else pd.NA
-            t_pres_c = pres_c_mode.iloc[0] if not pres_c_mode.empty else pd.NA
-        else:
-            t_pres_v, t_pres_c = pd.NA, pd.NA
-
-        # 3. Identify the Past Tense Target
-        past_rows = latest_rows[latest_rows["std_infl"].isin(["PastSg", "PastPl"])]
-        if not past_rows.empty:
-            past_v_mode = past_rows["extracted_vowel"].dropna().mode()
-            past_c_mode = past_rows["extracted_coda"].dropna().mode()
-            t_past_v = past_v_mode.iloc[0] if not past_v_mode.empty else pd.NA
-            t_past_c = past_c_mode.iloc[0] if not past_c_mode.empty else pd.NA
-        else:
-            t_past_v, t_past_c = pd.NA, pd.NA
+        # A curated modern form replaces the corpus target for that tense.
+        modern = nhg.get(str(lid), {})
+        pres_source = past_source = "corpus"
+        if "pres" in modern:
+            t_pres_v, t_pres_c = modern["pres"]
+            pres_source = "nhg"
+        if "past" in modern:
+            t_past_v, t_past_c = modern["past"]
+            past_source = "nhg"
 
         target_data.append(
             {
@@ -692,10 +780,27 @@ def step_3_establish_targets(df):
                 "target_coda_pres": t_pres_c,
                 "target_vowel_past": t_past_v,
                 "target_coda_past": t_past_c,
+                "target_pres_date": pres_date,
+                "target_pres_n": pres_n,
+                "target_past_date": past_date,
+                "target_past_n": past_n,
+                "target_pres_source": pres_source,
+                "target_past_source": past_source,
             }
         )
 
-    return pd.DataFrame(target_data)
+    result = pd.DataFrame(target_data)
+
+    resolved_past = result["target_vowel_past"].notna().sum()
+    resolved_pres = result["target_vowel_pres"].notna().sum()
+    print(
+        f"Resolved a past vowel target for {resolved_past} of {len(result)} "
+        f"lemma-variety groups, and a present vowel target for {resolved_pres}."
+    )
+    for tense in ("pres", "past"):
+        counts = result[f"target_{tense}_source"].value_counts().to_dict()
+        print(f"  {tense} target source: {counts}")
+    return result
 
 
 def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_changes.csv"):
@@ -750,6 +855,40 @@ def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_change
             hist_diff_v_other = row.get("diff_vowel_pastsg_pastpl")
             hist_diff_c_other = row.get("diff_cons_pastsg_pastpl")
 
+        # Contrasts the pre-1200 baseline established for this paradigm. Each
+        # one is protected from the sound-change filter, in both directions.
+        def build_protected(pairs):
+            out = set()
+            for first, second, differs in pairs:
+                if differs is not True:
+                    continue
+                if pd.isna(first) or pd.isna(second):
+                    continue
+                first, second = str(first), str(second)
+                if first != second:
+                    out.add(frozenset((first, second)))
+            return out
+
+        protected_v = build_protected(
+            [
+                (anchor_pres_v, anchor_self_v, hist_diff_v_pres),
+                (anchor_self_v, anchor_other_v, hist_diff_v_other),
+            ]
+        )
+        # Codas are compared on their last character, so protect that form too.
+        def last_char(value):
+            if pd.isna(value):
+                return value
+            text = str(value).lower()
+            return text[-1] if len(text) > 1 else text
+
+        protected_c = build_protected(
+            [
+                (last_char(anchor_pres_c), last_char(anchor_self_c), hist_diff_c_pres),
+                (last_char(anchor_self_c), last_char(anchor_other_c), hist_diff_c_other),
+            ]
+        )
+
         obs_v = row["extracted_vowel"]
         obs_c = row["extracted_coda"]
 
@@ -778,9 +917,11 @@ def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_change
 
             def is_equiv(a, b):
                 if is_cons:
-                    return are_cons_equivalent(a, b)
+                    return are_cons_equivalent(a, b, protected=protected_c)
                 else:
-                    return are_vowels_equivalent(a, b, variety, sc_dict)
+                    return are_vowels_equivalent(
+                        a, b, variety, sc_dict, protected=protected_v
+                    )
 
             # 2. Target Validity Check
             # If the Target == Anchor (via sound change), we can't detect leveling.
@@ -875,7 +1016,13 @@ def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_change
 def run_pipeline(
     input_file="data/combined_normalized_corpus.csv",
     output_file="data/coded_output.csv",
+    nhg_file="data/lemmas/nhg_targets.csv",
 ):
+    """
+    nhg_file is a parameter so that a sensitivity run can point the modern
+    targets at an alternative table without touching the one on disk. See
+    analysis/marking_type_summary.py --sensitivity.
+    """
     df = pd.read_csv(input_file, dtype=str)
 
     # 1. Preprocess & Extract Root Parts
@@ -885,7 +1032,7 @@ def run_pipeline(
     baseline_df = step_2_establish_baseline(df_processed)
 
     # 3. Get Targets (End State)
-    target_df = step_3_establish_targets(df_processed)
+    target_df = step_3_establish_targets(df_processed, nhg_file=nhg_file)
 
     # 4. Code Variables
     final_df = step_4_coding_outcome(df_processed, baseline_df, target_df)

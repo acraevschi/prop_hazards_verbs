@@ -12,8 +12,8 @@ Token Attrition,Past-Tense Coded Tokens,49616
 Token Attrition,Past-Tense Tokens with Baseline Anchor,48273
 Token Attrition,Past-Tense Tokens Dropped (No Baseline),1343
 Token Attrition,Final Analyzed Rows in GAMM Dataset,13184
-Leveling vs Sound Change,Transitions Explained by Sound Change Dict (Past),4051
-Leveling vs Sound Change,Transitions Explained by Sound Change Dict (Pres),772
-Leveling vs Sound Change,Total Transitions Filtered as Sound Change,4823
+Leveling vs Sound Change,Transitions Explained by Sound Change Dict (Past),7660
+Leveling vs Sound Change,Transitions Explained by Sound Change Dict (Pres),1355
+Leveling vs Sound Change,Total Transitions Filtered as Sound Change,9015
 Leveling vs Sound Change,Genuine Analogical Leveling Events (has_levelled=1),532
 Leveling vs Sound Change,Leveling Resistance Observations (has_levelled=0),12652

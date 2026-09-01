@@ -33,9 +33,15 @@ prop_hazards_verbs/
 │   │   ├── enhg_mhg_mapping.py              <- DSU graph algorithm to assign unified lemma_id
 │   │   ├── enhg_mapping.json / mhg_mapping.json
 │   │   ├── etymology_matches_manual.csv     <- Curated etymological cross-links
-│   │   └── lemma_id.csv                     <- Final discrete lemma family identifiers
+│   │   ├── lemma_id.csv                     <- Final discrete lemma family identifiers
+│   │   ├── unimorph_deu.tsv                 <- Cached UniMorph deu release (checksum-verified)
+│   │   ├── unimorph_mapping.json            <- lemma -> 3sg preterite, with source variants
+│   │   ├── nhg_targets.csv                  <- Modern target forms consumed by step_3_establish_targets
+│   │   └── nhg_targets_misses.csv           <- Lemmas the source could not cover, and what was tried
 │   ├── normalize_data.py                    <- Step 3: Dialect/date mapping & token frequency thresholding
 │   ├── dialect_mapping.json / date_mapping.json
+│   ├── extract_nhg_preterites.py            <- Step 3b: Modern preterites from UniMorph (deu), pinned commit
+│   ├── build_nhg_targets.py                 <- Step 3c: Assemble modern infinitive/preterite targets per lemma_id
 │   ├── corpus_approach_coding.py            <- Step 4: Root extraction, pre-1200 baseline & leveling coding
 │   ├── vowel_changes.csv                    <- Dialect-specific sound change dictionary
 │   ├── combined_corpus.csv / combined_normalized_corpus.csv
@@ -47,6 +53,7 @@ prop_hazards_verbs/
 │   ├── analyze_models.Rmd                   <- Step 6: LOO-CV comparison, hypothesis testing, plots
 │   ├── mcmc_convergence.R                  <- MCMC convergence diagnostics table across 5 fits
 │   ├── attrition_diagnostics.py             <- Lemma/token attrition & sound-change filter diagnostics
+│   ├── marking_type_summary.py              <- Marking-type counts & bipartite concentration, without Stan
 │   ├── target_sensitivity.py                <- Double robustness check for late ENHG target definitions
 │   ├── check_alternation_patterns.ipynb     <- Diagnostic inspection of alternation patterns
 │   └── reports/                             <- Diagnostic audit & convergence reports (.md, .csv)
@@ -96,6 +103,30 @@ Cross-corpus lemma linking resolves Middle High German (MHG) and Early New High 
 python data/normalize_data.py
 ```
 
+### Stage 3b: Modern German Target Forms
+
+The endpoint of leveling is the root the verb reached in modern German. The
+corpus cannot supply it: 46 of the 88 modelled lemmas have no past-tense token
+dated 1500 or later. The targets therefore come from a dictionary source.
+
+```bash
+# Fetch UniMorph deu at a pinned commit, verify its checksum, resolve variants
+python data/extract_nhg_preterites.py
+
+# Assemble one modern infinitive and preterite per lemma_id
+python data/build_nhg_targets.py
+```
+
+*`nhg_preterite` comes from a single source, UniMorph `deu` (CC BY-SA 3.0), at a
+pinned commit whose SHA-256 is verified on every run; the licence, citation and
+variant policy are documented in the header of `data/extract_nhg_preterites.py`.
+Where UniMorph lists more than one preterite, the choice is enumerated per lemma
+in `VARIANT_POLICY` with a reason, and the rejected variants are carried into
+`nhg_targets.csv` so `analysis/marking_type_summary.py --sensitivity` can re-run
+the coding under them. Lemmas the source cannot cover are left empty and listed
+in `data/lemmas/nhg_targets_misses.csv`; the corpus rule remains the fallback
+for those.*
+
 ### Stage 4: Root Extraction, Baselines & Leveling Coding
 ```bash
 # Extract roots with phonotactic guards, calculate pre-1200 anchors, and code leveling outcomes
@@ -117,6 +148,15 @@ Before fitting the statistical models, run the diagnostic tools to audit data re
      python analysis/attrition_diagnostics.py
      ```
    - **Outputs**: `analysis/reports/attrition_report.md` and `analysis/reports/attrition_summary.csv`.
+
+2. **Marking-Type Summary** (`analysis/marking_type_summary.py`):
+   - **Purpose**: Reports the `marking_type` counts, the bipartite leveling rate by period, and how the bipartite events are distributed over lemmas, without fitting anything. The same table is otherwise only available from `run_brms.R`, which takes about six hours.
+   - **Fidelity**: The reshape is a port of the "Reshaping & Predictor Construction" block of `run_brms.R`. It reproduces that script's `analysis/data_for_analysis.csv` exactly (13,184 observations, 532 leveling events on the committed baseline), so its row count can be read as the count the models will see.
+   - **Command**:
+     ```bash
+     python analysis/marking_type_summary.py
+     python analysis/marking_type_summary.py --sensitivity   # re-code with every VARIANT_POLICY choice flipped
+     ```
 
 2. **Target State Sensitivity Analysis (Double Robustness Check)** (`analysis/target_sensitivity.py`):
    - **Purpose**: Verifies that the operationalization of each verb's teleological target state (its morphological endpoint by the end of ENHG) is not biased by varying document survival dates.

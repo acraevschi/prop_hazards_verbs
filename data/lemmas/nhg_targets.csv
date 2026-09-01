@@ -1,0 +1,293 @@
+lemma_id,lemma,in_model,nhg_infinitive,nhg_preterite,nhg_preterite_variants,variant_selection,confidence,source_infinitive,source_preterite,curator_note
+51,bergen,yes,bergen,barg,barg,single,high,dwds,unimorph-deu-d226d21,
+72,braten,yes,braten,briet,briet,single,high,dwds,unimorph-deu-d226d21,
+30,brechen,yes,brechen,brach,brach,single,high,dwds,unimorph-deu-d226d21,
+74,brennen,yes,brennen,brannte,brannte,single,high,dwds,unimorph-deu-d226d21,
+31,dringen,yes,dringen,drang,drang,single,high,dwds,unimorph-deu-d226d21,
+67,dwingen,yes,zwingen,zwang,zwang,single,high,dwds,unimorph-deu-d226d21,
+113,dîhen,yes,gedeihen,gedieh,gedieh,single,high,dwds,unimorph-deu-d226d21,
+104,essen,yes,essen,aß,aß,single,high,dwds,unimorph-deu-d226d21,
+32,fallen,yes,fallen,fiel,fiel,single,high,dwds,unimorph-deu-d226d21,
+39,finden,yes,finden,fand,fand,single,high,dwds,unimorph-deu-d226d21,
+108,fliegen,yes,fliegen,flog,flog,single,high,dwds,unimorph-deu-d226d21,
+85,fliehen,yes,fliehen,floh,floh,single,high,dwds,unimorph-deu-d226d21,
+21,geben,yes,geben,gab,gab,single,high,dwds,unimorph-deu-d226d21,
+18,gebot,yes,bieten,bot,bot,single,high,dwds,unimorph-deu-d226d21,
+86,gelten,yes,gelten,galt,galt,single,high,dwds,unimorph-deu-d226d21,
+122,gewinn,yes,gewinnen,gewann,gewann,single,high,dwds,unimorph-deu-d226d21,
+125,gießen,yes,gießen,goss,goss,single,high,dwds,unimorph-deu-d226d21,
+215,gëzzen,yes,vergessen,vergaß,vergaß,single,high,dwds,unimorph-deu-d226d21,
+24,halten,yes,halten,hielt,hielt,single,high,dwds,unimorph-deu-d226d21,
+129,hauen,yes,hauen,hieb,haute|hieb,policy,policy,dwds,unimorph-deu-d226d21,"strong form still current for the 'hew, strike' sense of MHG houwen; haute is colloquial"
+92,heben,yes,heben,hob,hob,single,high,dwds,unimorph-deu-d226d21,
+131,heischen,yes,heischen,heischte,heischte,single,high,dwds,unimorph-deu-d226d21,
+2,helfen,yes,helfen,half,half,single,high,dwds,unimorph-deu-d226d21,
+134,hâhen,yes,hängen,hing,hing|hängte,policy,policy,dwds,unimorph-deu-d226d21,hing is the intransitive reflex of MHG hâhen; hängte belongs to the transitive causative (MHG hengen)
+94,klingen,yes,klingen,klang,klang,single,high,dwds,unimorph-deu-d226d21,
+3,komen,yes,kommen,kam,kam,single,high,dwds,unimorph-deu-d226d21,
+141,krauchen,yes,kriechen,kroch,kroch,single,high,dwds,unimorph-deu-d226d21,
+87,laden,yes,laden,lud,lud,single,high,dwds,unimorph-deu-d226d21,
+5,lauf,yes,laufen,lief,lief,single,high,dwds,unimorph-deu-d226d21,
+146,lesen,yes,lesen,las,las,single,high,dwds,unimorph-deu-d226d21,
+25,ligen,yes,liegen,lag,lag,single,high,dwds,unimorph-deu-d226d21,
+116,lingen,yes,gelingen,gelang,gelang,single,high,dwds,unimorph-deu-d226d21,
+216,lièsen,yes,verlieren,verlor,verlor,single,high,dwds,unimorph-deu-d226d21,
+4,lâzen,yes,lassen,ließ,ließ,single,high,dwds,unimorph-deu-d226d21,
+95,lîden,yes,leiden,litt,litt,single,high,dwds,unimorph-deu-d226d21,
+145,lîhen,yes,leihen,lieh,lieh,single,high,dwds,unimorph-deu-d226d21,
+148,malen,yes,mahlen,mahlte,mahlte|muhl,policy,policy,dwds,unimorph-deu-d226d21,muhl has dropped out of present-day German; mahlte is the settled form
+149,mîden,yes,meiden,mied,mied,single,high,dwds,unimorph-deu-d226d21,
+49,nëmen,yes,nehmen,nahm,nahm,single,high,dwds,unimorph-deu-d226d21,
+119,nësen,yes,genesen,genas,genas,single,high,dwds,unimorph-deu-d226d21,
+157,pflegen,yes,pflegen,pflegte,pflegte,single,high,dwds,unimorph-deu-d226d21,
+50,raten,yes,raten,riet,riet,single,high,dwds,unimorph-deu-d226d21,
+167,riechen,yes,riechen,roch,roch,single,high,dwds,unimorph-deu-d226d21,
+245,ringen,yes,ringen,rang,rang,single,high,unimorph,unimorph-deu-d226d21,
+168,rinnen,yes,rinnen,rann,rann,single,high,dwds,unimorph-deu-d226d21,
+53,rufen,yes,rufen,rief,rief,single,high,dwds,unimorph-deu-d226d21,
+169,rächen,yes,rächen,rächte,rächte,single,high,dwds,unimorph-deu-d226d21,
+173,scheiden,yes,scheiden,schied,schied,single,high,dwds,unimorph-deu-d226d21,
+174,schelten,yes,schelten,schalt,schalt,single,high,dwds,unimorph-deu-d226d21,
+98,schrecken,yes,schrecken,schreckte,schreckte|schrak,policy,policy,dwds,unimorph-deu-d226d21,"the simplex schrecken is weak today; the strong schrak survives only in the prefixed erschrak, so it is not the endpoint of this headword. Flip to 'schrak' to treat the prefixed form as the continuation"
+181,schrîen,yes,schreien,schrie,schrie,single,high,dwds,unimorph-deu-d226d21,
+120,schëhen,yes,geschehen,geschah,geschah,single,high,dwds,unimorph-deu-d226d21,
+97,schînen,yes,scheinen,schien,schien,single,high,dwds,unimorph-deu-d226d21,
+22,sehen,yes,sehen,sah,sah,single,high,dwds,unimorph-deu-d226d21,
+193,sieden,yes,sieden,sott,sott|siedete,policy,policy,dwds,unimorph-deu-d226d21,"the strong sott is still current, if technical and literary"
+194,singen,yes,singen,sang,sang,single,high,dwds,unimorph-deu-d226d21,
+58,sinnen,yes,sinnen,sann,sann,single,high,dwds,unimorph-deu-d226d21,
+59,sitzen,yes,sitzen,saß,saß,single,high,dwds,unimorph-deu-d226d21,
+7,slahen,yes,schlagen,schlug,schlug,single,high,dwds,unimorph-deu-d226d21,
+55,slâfen,yes,schlafen,schlief,schlief,single,high,dwds,unimorph-deu-d226d21,
+8,snîden,yes,schneiden,schnitt,schnitt,single,high,dwds,unimorph-deu-d226d21,
+27,sprechen,yes,sprechen,sprach,sprach,single,high,dwds,unimorph-deu-d226d21,
+90,springen,yes,springen,sprang,sprang,single,high,dwds,unimorph-deu-d226d21,
+33,stechen,yes,stechen,stach,stach,single,high,dwds,unimorph-deu-d226d21,
+10,sterben,yes,sterben,starb,starb,single,high,dwds,unimorph-deu-d226d21,
+201,stieben,yes,stieben,stob,stob,single,high,dwds,unimorph-deu-d226d21,
+202,stinken,yes,stinken,stank,stank,single,high,dwds,unimorph-deu-d226d21,
+62,streit,yes,streiten,stritt,stritt,single,high,dwds,unimorph-deu-d226d21,
+205,strîchen,yes,streichen,strich,strich,single,high,dwds,unimorph-deu-d226d21,
+199,stëlen,yes,stehlen,stahl,stahl,single,high,dwds,unimorph-deu-d226d21,
+185,swimmen,yes,schwimmen,schwamm,schwamm|schwomm,policy,policy,dwds,unimorph-deu-d226d21,schwomm has dropped out of the standard language
+186,swinten,yes,schwinden,schwand,schwand,single,high,dwds,unimorph-deu-d226d21,
+57,swèren,yes,schwören,schwor,schwor,single,high,dwds,unimorph-deu-d226d21,
+11,tragen,yes,tragen,trug,trug,single,high,dwds,unimorph-deu-d226d21,
+64,treffen,yes,treffen,traf,traf,single,high,dwds,unimorph-deu-d226d21,
+13,treten,yes,treten,trat,trat,single,high,dwds,unimorph-deu-d226d21,
+212,triefen,yes,triefen,troff,troff|triefte,policy,policy,dwds,unimorph-deu-d226d21,"the strong troff is still current, if literary; triefte is the commoner variant, which makes this the weakest call in this table"
+99,trinken,yes,trinken,trank,trank,single,high,dwds,unimorph-deu-d226d21,
+88,trinnen,yes,entrinnen,entrann,entrann,single,high,dwds,unimorph-deu-d226d21,
+91,varen,yes,fahren,fuhr,fuhr,single,high,dwds,unimorph-deu-d226d21,
+19,vâhen,yes,fangen,fing,fing,single,high,dwds,unimorph-deu-d226d21,
+20,vëhten,yes,fechten,focht,focht,single,high,dwds,unimorph-deu-d226d21,
+101,wahsen,yes,wachsen,wuchs,wuchs|wachste,policy,policy,dwds,unimorph-deu-d226d21,"wachste is the weak homograph wachsen 'apply wax', a different verb from MHG wahsen 'grow'"
+221,waschen,yes,waschen,wusch,wusch,single,high,dwds,unimorph-deu-d226d21,
+102,werben,yes,werben,warb,warb,single,high,dwds,unimorph-deu-d226d21,
+16,werfen,yes,werfen,warf,warf,single,high,dwds,unimorph-deu-d226d21,
+103,wägen,yes,wägen,wog,wog,single,high,dwds,unimorph-deu-d226d21,
+219,zîhen,yes,zeihen,zieh,zieh,single,high,dwds,unimorph-deu-d226d21,
+229,bachen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+52,bersten,no,bersten,,,,,dwds,,no UniMorph entry for the resolved infinitive 'bersten'
+232,binten,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+277,biten,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+281,blanten,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+282,bliuwen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+283,blîchen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+293,bunnen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+295,bëlgen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+296,bëren,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+297,bîten,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+298,bîzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+300,bûwen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+303,dièzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+233,drièzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+234,durfen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+235,dwahen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+311,dërben,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+312,enphâhen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+372,glîzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+376,grînen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+327,hëlen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+239,jëhen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+140,klimmen,no,klimmen,,,,,dwds,,no UniMorph entry for the resolved infinitive 'klimmen'
+384,klièben,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+240,klîben,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+332,krîgen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+241,lîben,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+242,lûchen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+352,mügen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+400,niuwen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+353,nièzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+354,nîden,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+355,nîgen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+315,quëden,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+246,riuwen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+250,rîsen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+251,rîzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+252,schinten,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+308,schièzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+253,schrôten,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+254,schèpfen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+189,sein,no,sein,,,,,dwds,,no UniMorph entry for the resolved infinitive 'sein'
+341,slinten,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+358,slièfen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+257,slièzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+258,slîfen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+259,slîzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+423,smërzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+262,spîwen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+264,stôzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+436,swëlhen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+318,swëllen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+319,swëren,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+265,swîchen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+437,swînen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+267,sèben,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+268,sîgen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+361,sîn,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+269,sûfen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+14,tun,no,tun,,,,,dwds,,no UniMorph entry for the resolved infinitive 'tun'
+271,valten,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+272,vlièzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+362,vlîzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+343,vrièsen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+273,vëlhen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+321,wahen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+275,winten,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+365,wizzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+451,wuofen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+447,wâzen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+324,wërren,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+325,wësen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+345,wîhen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+124,zëmen,no,ziemen,,,,,dwds,,no UniMorph entry for the resolved infinitive 'ziemen'
+448,èischen,no,,,,,,,,no modern infinitive found in DWDS or UniMorph
+230,backen,no,backen,backte,backte|buk,policy,policy,unimorph,unimorph-deu-d226d21,buk has dropped out of ordinary standard use; backte is the settled form
+35,bedenken,no,bedenken,bedachte,bedachte,single,high,dwds,unimorph-deu-d226d21,
+37,bedürfen,no,bedürfen,bedurfte,bedurfte,single,high,dwds,unimorph-deu-d226d21,
+38,befehlen,no,befehlen,befahl,befahl,single,high,dwds,unimorph-deu-d226d21,
+40,begehren,no,begehren,begehrte,begehrte,single,high,dwds,unimorph-deu-d226d21,
+46,bekennen,no,bekennen,bekannte,bekannte,single,high,dwds,unimorph-deu-d226d21,
+47,bellen,no,bellen,bellte,bellte,single,high,dwds,unimorph-deu-d226d21,
+56,beschweren,no,beschweren,beschwerte,beschwerte,single,high,dwds,unimorph-deu-d226d21,
+68,binden,no,binden,band,band,single,high,dwds,unimorph-deu-d226d21,
+69,bitte,no,bitten,bat,bat,single,high,dwds,unimorph-deu-d226d21,
+279,biègen,no,biegen,bog,bog,single,high,unimorph,unimorph-deu-d226d21,
+70,blasen,no,blasen,blies,blies,single,high,dwds,unimorph-deu-d226d21,
+71,bleiben,no,bleiben,blieb,blieb,single,high,dwds,unimorph-deu-d226d21,
+73,brauchen,no,brauchen,brauchte,brauchte,single,high,dwds,unimorph-deu-d226d21,
+75,bringen,no,bringen,brachte,brachte,single,high,dwds,unimorph-deu-d226d21,
+76,denken,no,denken,dachte,dachte,single,high,dwds,unimorph-deu-d226d21,
+77,dienen,no,dienen,diente,diente,single,high,dwds,unimorph-deu-d226d21,
+78,drehen,no,drehen,drehte,drehte,single,high,dwds,unimorph-deu-d226d21,
+306,drëschen,no,dreschen,drosch,drosch,single,high,unimorph,unimorph-deu-d226d21,
+79,dünken,no,dünken,deuchte,deuchte,single,high,dwds,unimorph-deu-d226d21,
+82,eilen,no,eilen,eilte,eilte,single,high,dwds,unimorph-deu-d226d21,
+83,empfangen,no,empfangen,empfing,empfing,single,high,dwds,unimorph-deu-d226d21,
+84,empfehlen,no,empfehlen,empfahl,empfahl,single,high,dwds,unimorph-deu-d226d21,
+89,entsetzen,no,entsetzen,entsetzte,entsetzte,single,high,dwds,unimorph-deu-d226d21,
+93,erkennen,no,erkennen,erkannte,erkannte,single,high,dwds,unimorph-deu-d226d21,
+109,fordern,no,fordern,forderte,forderte,single,high,dwds,unimorph-deu-d226d21,
+111,führen,no,führen,führte,führte,single,high,dwds,unimorph-deu-d226d21,
+112,gebären,no,gebären,gebar,gebar,single,high,dwds,unimorph-deu-d226d21,
+115,gehören,no,gehören,gehörte,gehörte,single,high,dwds,unimorph-deu-d226d21,
+123,gewähren,no,gewähren,gewährte,gewährte,single,high,dwds,unimorph-deu-d226d21,
+41,ginnen,no,beginnen,begann,begann,single,high,dwds,unimorph-deu-d226d21,
+42,graben,no,graben,grub,grub,single,high,dwds,unimorph-deu-d226d21,
+23,grîfen,no,greifen,griff,griff,single,high,dwds,unimorph-deu-d226d21,
+127,gunnen,no,gönnen,gönnte,gönnte,single,high,dwds,unimorph-deu-d226d21,
+1,gân,no,gehen,ging,ging,single,high,dwds,unimorph-deu-d226d21,
+128,habe,no,haben,hatte,hatte,single,high,dwds,unimorph-deu-d226d21,
+348,halsen,no,halsen,halste,halste,single,high,unimorph,unimorph-deu-d226d21,
+130,heilen,no,heilen,heilte,heilte,single,high,dwds,unimorph-deu-d226d21,
+44,herrschen,no,herrschen,herrschte,herrschte,single,high,dwds,unimorph-deu-d226d21,
+380,hinken,no,hinken,hinkte,hinkte,single,high,unimorph,unimorph-deu-d226d21,
+133,hoffen,no,hoffen,hoffte,hoffte,single,high,dwds,unimorph-deu-d226d21,
+238,hèizen,no,heizen,heizte,heizte,single,high,unimorph,unimorph-deu-d226d21,
+328,hëllen,no,hellen,hellte,hellte,single,high,unimorph,unimorph-deu-d226d21,
+135,hören,no,hören,hörte,hörte,single,high,dwds,unimorph-deu-d226d21,
+45,hüten,no,hüten,hütete,hütete,single,high,dwds,unimorph-deu-d226d21,
+137,kaufen,no,kaufen,kaufte,kaufte,single,high,dwds,unimorph-deu-d226d21,
+138,kennen,no,kennen,kannte,kannte,single,high,dwds,unimorph-deu-d226d21,
+330,kièsen,no,kiesen,kor,kor,single,high,unimorph,unimorph-deu-d226d21,
+142,können,no,können,konnte,konnte,single,high,dwds,unimorph-deu-d226d21,
+143,leben,no,leben,lebte,lebte,single,high,dwds,unimorph-deu-d226d21,
+144,legen,no,legen,legte,legte,single,high,dwds,unimorph-deu-d226d21,
+117,loben,no,loben,lobte,lobte,single,high,dwds,unimorph-deu-d226d21,
+96,lëschen,no,löschen,löschte,löschte,single,high,dwds,unimorph-deu-d226d21,
+48,lügen,no,liegen,lag,lag,single,high,dwds_normalized,unimorph-deu-d226d21,
+147,machen,no,machen,machte,machte,single,high,dwds,unimorph-deu-d226d21,
+150,meinen,no,meinen,meinte,meinte,single,high,dwds,unimorph-deu-d226d21,
+118,messen,no,messen,maß,maß,single,high,dwds,unimorph-deu-d226d21,
+152,mugen,no,mögen,mochte,mochte,single,high,dwds,unimorph-deu-d226d21,
+153,müssen,no,müssen,musste,musste,single,high,dwds,unimorph-deu-d226d21,
+154,nagen,no,nagen,nagte,nagte,single,high,dwds,unimorph-deu-d226d21,
+155,nennen,no,nennen,nannte,nannte,single,high,dwds,unimorph-deu-d226d21,
+159,quëlen,no,quellen,quoll,quoll,single,high,dwds,unimorph-deu-d226d21,
+160,rechnen,no,rechnen,rechnete,rechnete,single,high,dwds,unimorph-deu-d226d21,
+161,regieren,no,regieren,regierte,regierte,single,high,dwds,unimorph-deu-d226d21,
+165,rennen,no,rennen,rannte,rannte,single,high,dwds,unimorph-deu-d226d21,
+166,retten,no,retten,rettete,rettete,single,high,dwds,unimorph-deu-d226d21,
+162,rîben,no,reiben,rieb,rieb,single,high,dwds,unimorph-deu-d226d21,
+163,rîchen,no,reichen,reichte,reichte,single,high,dwds,unimorph-deu-d226d21,
+164,rîten,no,reiten,ritt,ritt,single,high,dwds,unimorph-deu-d226d21,
+170,sagen,no,sagen,sagte,sagte,single,high,dwds,unimorph-deu-d226d21,
+411,salzen,no,salzen,salzte,salzte,single,high,unimorph,unimorph-deu-d226d21,
+172,schaben,no,schaben,schabte,schabte,single,high,dwds,unimorph-deu-d226d21,
+6,schaffen,no,schaffen,schuf,schuf|schaffte,policy,policy,dwds,unimorph-deu-d226d21,"schaffte belongs to the weak homograph schaffen 'manage, work'; MHG schaffen 'create' continues as schuf"
+357,schalten,no,schalten,schaltete,schaltete,single,high,unimorph,unimorph-deu-d226d21,
+175,schicken,no,schicken,schickte,schickte,single,high,dwds,unimorph-deu-d226d21,
+339,schièben,no,schieben,schob,schob,single,high,unimorph,unimorph-deu-d226d21,
+26,schrîben,no,schreiben,schrieb,schrieb,single,high,dwds,unimorph-deu-d226d21,
+182,schrîten,no,schreiten,schritt,schritt,single,high,dwds,unimorph-deu-d226d21,
+309,schëllen,no,schellen,schellte,schellte,single,high,unimorph,unimorph-deu-d226d21,
+255,schëren,no,scheren,schor,schor|scherte,policy,policy,unimorph,unimorph-deu-d226d21,strong form still current
+54,schîden,no,bescheiden,beschied,beschied,single,high,dwds,unimorph-deu-d226d21,
+190,senden,no,senden,sandte,sendete|sandte,policy,policy,dwds,unimorph-deu-d226d21,Rückumlauf form is the commoner standard variant
+192,setzen,no,setzen,setzte,setzte,single,high,dwds,unimorph-deu-d226d21,
+195,sinken,no,sinken,sank,sank,single,high,dwds,unimorph-deu-d226d21,
+176,slîchen,no,schleichen,schlich,schlich,single,high,dwds,unimorph-deu-d226d21,
+196,sollen,no,sollen,sollte,sollte,single,high,dwds,unimorph-deu-d226d21,
+359,spalten,no,spalten,spaltete,spaltete,single,high,unimorph,unimorph-deu-d226d21,
+261,spannen,no,spannen,spannte,spannte,single,high,unimorph,unimorph-deu-d226d21,
+198,spinnen,no,spinnen,spann,spann,single,high,dwds,unimorph-deu-d226d21,
+60,stellen,no,stellen,stellte,stellte,single,high,dwds,unimorph-deu-d226d21,
+203,strafen,no,strafen,strafte,strafte,single,high,dwds,unimorph-deu-d226d21,
+206,studieren,no,studieren,studierte,studierte,single,high,dwds,unimorph-deu-d226d21,
+9,stân,no,stehen,stand,stand,single,high,dwds,unimorph-deu-d226d21,
+200,stîgen,no,steigen,stieg,stieg,single,high,dwds,unimorph-deu-d226d21,
+207,suchen,no,suchen,suchte,suchte,single,high,dwds,unimorph-deu-d226d21,
+187,swingen,no,schwingen,schwang,schwang,single,high,dwds,unimorph-deu-d226d21,
+183,swèifen,no,schweifen,schweifte,schweifte,single,high,dwds,unimorph-deu-d226d21,
+184,swîgen,no,schweigen,schwieg,schwieg,single,high,dwds,unimorph-deu-d226d21,
+208,säumen,no,säumen,säumte,säumte,single,high,dwds,unimorph-deu-d226d21,
+188,sîhen,no,seihen,seihte,seihte,single,high,dwds,unimorph-deu-d226d21,
+171,sûgen,no,saugen,sog,sog|saugte,policy,policy,dwds,unimorph-deu-d226d21,strong form still current
+12,trîben,no,treiben,trieb,trieb,single,high,dwds,unimorph-deu-d226d21,
+65,trügen,no,trügen,trog,trog,single,high,dwds,unimorph-deu-d226d21,
+210,tugen,no,taugen,taugte,taugte,single,high,dwds,unimorph-deu-d226d21,
+213,verdammen,no,verdammen,verdammte,verdammte,single,high,dwds,unimorph-deu-d226d21,
+214,verderben,no,verderben,verdarb,verdarb,single,high,dwds,unimorph-deu-d226d21,
+217,verraten,no,verraten,verriet,verriet,single,high,dwds,unimorph-deu-d226d21,
+106,vlëhten,no,flechten,flocht,flechtete|flocht,policy,policy,dwds,unimorph-deu-d226d21,strong form is the standard one; flechtete is rare
+100,wachen,no,wachen,wachte,wachte,single,high,dwds,unimorph-deu-d226d21,
+446,walken,no,walken,walkte,walkte,single,high,unimorph,unimorph-deu-d226d21,
+274,wallen,no,wallen,wallte,wallte,single,high,unimorph,unimorph-deu-d226d21,
+322,walten,no,walten,waltete,waltete,single,high,unimorph,unimorph-deu-d226d21,
+220,warten,no,warten,wartete,wartete,single,high,dwds,unimorph-deu-d226d21,
+222,waten,no,waten,watete,watete,single,high,dwds,unimorph-deu-d226d21,
+28,wenden,no,wenden,wandte,wendete|wandte,policy,policy,dwds,unimorph-deu-d226d21,Rückumlauf form is the commoner standard variant
+223,werden,no,werden,wurde,wurde|ward,policy,policy,dwds,unimorph-deu-d226d21,ward is archaic; wurde is the modern form
+225,wohnen,no,wohnen,wohnte,wohnte,single,high,dwds,unimorph-deu-d226d21,
+368,wëben,no,weben,wob,webte|wob,policy,policy,unimorph,unimorph-deu-d226d21,"strong form still current, if elevated"
+276,wëllen,no,wellen,wellte,wellte,single,high,unimorph,unimorph-deu-d226d21,
+323,wërden,no,werden,wurde,wurde|ward,policy,policy,dwds_normalized,unimorph-deu-d226d21,ward is archaic; wurde is the modern form
+15,wîchen,no,weichen,wich,wich,single,high,dwds,unimorph-deu-d226d21,
+34,wîsen,no,weisen,wies,wies,single,high,dwds,unimorph-deu-d226d21,
+224,wîzen,no,wissen,wusste,wusste,single,high,dwds,unimorph-deu-d226d21,
+29,zeigen,no,zeigen,zeigte,zeigte,single,high,dwds,unimorph-deu-d226d21,
+66,zeugen,no,zeugen,zeugte,zeugte,single,high,dwds,unimorph-deu-d226d21,
+17,ziehen,no,ziehen,zog,zog,single,high,dwds,unimorph-deu-d226d21,
+218,zëren,no,zehren,zehrte,zehrte,single,high,dwds,unimorph-deu-d226d21,
+228,üben,no,üben,übte,übte,single,high,dwds,unimorph-deu-d226d21,
