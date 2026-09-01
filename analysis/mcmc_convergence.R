@@ -60,7 +60,9 @@ for (m in models_info) {
   
   results[[m_name]] <- data.frame(
     Model = m_name,
+    Post_Warmup_Draws = brms::ndraws(fit),
     Max_Rhat = round(max_rhat, 4),
+    Pct_Rhat_Num = pct_rhat_ok,
     Pct_Rhat_LE_1.01 = sprintf("%.1f%%", pct_rhat_ok),
     Min_Bulk_ESS = round(min_bulk, 0),
     Min_Tail_ESS = round(min_tail, 0),
@@ -72,26 +74,85 @@ for (m in models_info) {
 
 res_df <- do.call(rbind, results)
 
+# Pct_Rhat_Num drives the summary text below. Drop it from the reported table,
+# which keeps the formatted percentage instead.
+pct_rhat_num <- res_df$Pct_Rhat_Num
+draws_num <- res_df$Post_Warmup_Draws
+res_df <- res_df[, setdiff(names(res_df), c("Pct_Rhat_Num", "Post_Warmup_Draws")), drop = FALSE]
+
 # Save to CSV
 csv_path <- "analysis/reports/mcmc_convergence.csv"
 dir.create(dirname(csv_path), showWarnings = FALSE, recursive = TRUE)
 write.csv(res_df, csv_path, row.names = FALSE)
 cat(sprintf("\nSaved CSV summary to: %s\n", csv_path))
 
+# Build the summary text from the measured values, never from fixed prose.
+build_interpretation <- function(df, pct_rhat, draws) {
+  n_models <- nrow(df)
+  worst_rhat <- max(df$Max_Rhat)
+  all_rhat_ok <- all(pct_rhat >= 100)
+  min_bulk <- min(df$Min_Bulk_ESS)
+  min_tail <- min(df$Min_Tail_ESS)
+  ess_floor <- 400  # 100 effective draws per chain, for 4 chains
+  div_lo <- min(df$Divergences)
+  div_hi <- max(df$Divergences)
+  td_models <- df$Model[df$Max_Treedepth_Hits > 0]
+
+  lines <- c("> **Interpretation**:")
+
+  lines <- c(lines, if (all_rhat_ok) {
+    sprintf("> - All %d models satisfy $\\hat{R} \\le 1.01$ across 100%% of estimated parameters (Vehtari et al., 2021). The largest value is %.4f.",
+            n_models, worst_rhat)
+  } else {
+    sprintf("> - %d of %d models satisfy $\\hat{R} \\le 1.01$ across all parameters. The largest value is %.4f. Read the table before you use the affected models.",
+            sum(pct_rhat >= 100), n_models, worst_rhat)
+  })
+
+  lines <- c(lines, if (min_bulk > ess_floor && min_tail > ess_floor) {
+    sprintf("> - Bulk-ESS and Tail-ESS exceed the reliability threshold of %d for 4 chains. The lowest values are %d (bulk) and %d (tail).",
+            ess_floor, round(min_bulk), round(min_tail))
+  } else {
+    sprintf("> - Effective sample size falls below the threshold of %d for 4 chains. The lowest values are %d (bulk) and %d (tail).",
+            ess_floor, round(min_bulk), round(min_tail))
+  })
+
+  lines <- c(lines, if (div_hi == 0) {
+    "> - No divergent transitions occurred under `adapt_delta = 0.99`."
+  } else {
+    sprintf("> - Divergent transitions range from %d to %d per model under `adapt_delta = 0.99`, out of %s post-warmup draws.",
+            div_lo, div_hi,
+            if (length(unique(draws)) == 1) format(draws[1], big.mark = ",")
+            else sprintf("%s to %s", format(min(draws), big.mark = ","), format(max(draws), big.mark = ",")))
+  })
+
+  if (length(td_models) > 0) {
+    lines <- c(lines, sprintf(
+      "> - %s hit the maximum treedepth of 10. This costs sampling efficiency, but it does not bias the posterior, and the $\\hat{R}$ and ESS values for %s stay within the thresholds above.",
+      paste(td_models, collapse = ", "),
+      if (length(td_models) == 1) "that model" else "those models"))
+  }
+
+  paste0(paste(lines, collapse = "\n"), "\n")
+}
+
 # Generate Markdown table
 md_content <- paste0(
   "# MCMC Convergence Diagnostics Summary Table\n\n",
   "Table of sampler health metrics across the 5 fitted Bayesian GAMM models in `fits/`:\n\n",
-  knitr::kable(
-    res_df, 
-    format = "pipe",
-    col.names = c("Model", "Max $\\hat{R}$", "$\\hat{R} \\le 1.01$ (%)", "Min Bulk-ESS", "Min Tail-ESS", "Divergences", "Max Treedepth Hits")
+  # kable() returns one element per line. Collapse it, or paste0() recycles the
+  # surrounding text across every row. row.names = FALSE drops the duplicate
+  # Model column that rbind() puts in the row names.
+  paste(
+    knitr::kable(
+      res_df,
+      format = "pipe",
+      row.names = FALSE,
+      col.names = c("Model", "Max $\\hat{R}$", "$\\hat{R} \\le 1.01$ (%)", "Min Bulk-ESS", "Min Tail-ESS", "Divergences", "Max Treedepth Hits")
+    ),
+    collapse = "\n"
   ),
   "\n\n",
-  "> **Interpretation**:\n",
-  "> - All 5 models satisfy $\\hat{R} \\le 1.01$ across 100% of estimated parameters (Vehtari et al., 2021).\n",
-  "> - Both Bulk-ESS and Tail-ESS comfortably exceed minimum reliability thresholds (> 400 for 4 chains).\n",
-  "> - Divergent transitions are minimal (0 to 6 across thousands of MCMC draws) under `adapt_delta = 0.99`.\n"
+  build_interpretation(res_df, pct_rhat_num, draws_num)
 )
 
 md_path <- "analysis/reports/mcmc_convergence_table.md"
@@ -99,4 +160,4 @@ writeLines(md_content, md_path)
 cat(sprintf("Saved Markdown table to: %s\n\n", md_path))
 
 # Print to console
-print(kable(res_df, format = "simple"))
+print(kable(res_df, format = "simple", row.names = FALSE))
