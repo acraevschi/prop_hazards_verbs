@@ -238,18 +238,43 @@ def load_sound_changes(filepath="data/vowel_changes.csv"):
 
 
 def standardize_infl(val):
-    """Normalizes inflection labels to the three critical slots."""
+    """
+    Normalizes inflection labels to the three critical slots.
+
+    This is the fallback for rows that carry no principal_part. The authority is
+    map_category in data/normalize_data.py, and this function must agree with
+    it. The four Germanic principal parts are:
+
+        PP1  infinitive and present
+        PP2  past indicative singular, 1st and 3rd person
+        PP3  past indicative singular 2nd person, past plural, and the whole
+             past subjunctive
+        PP4  past participle
+
+    PP3 groups those cells because they share one stem. The past subjunctive is
+    built on the past plural stem with umlaut: hulfen -> hülfe, zugen -> züge.
+    Reading mood therefore has to come before number: a past subjunctive
+    singular belongs with the plural, not with half -> PastSg. Without the mood
+    test, hülfe looks like a singular that has taken the plural vowel, which is
+    the leveling event this study counts.
+    """
     if pd.isna(val):
         return "Pres"
     val = str(val).lower()
     if "participle" in val or "ppl" in val:
         return "Ppl"
     if "past" in val or "prät" in val or "pret" in val:
-        if "pl" in val or "2" in val:  # 2nd person often patterns with Plural in MHG
+        if "subj" in val or "konj" in val:  # past subjunctive is built on the plural stem
             return "PastPl"
-        else:
-            return "PastSg"
+        if "pl" in val or "2" in val:  # 2nd person patterns with the plural in MHG
+            return "PastPl"
+        return "PastSg"
     return "Pres"
+
+
+# principal_part -> subparadigm, as map_category in data/normalize_data.py
+# numbers them.
+PRINCIPAL_PART_TO_INFL = {1: "Pres", 2: "PastSg", 3: "PastPl", 4: "Ppl"}
 
 
 def are_cons_equivalent(c1, c2, protected=None):
@@ -518,7 +543,21 @@ def step_1_preprocessing(df):
     df = df[~df["inflClass"].isin(["St|Sw|Unr", "Unr", "irr", "St|Unr", "prpr"])]
 
     df["date"] = pd.to_numeric(df["date"], errors="coerce")
-    df["std_infl"] = df["infl"].apply(standardize_infl)
+
+    # The subparadigm comes from principal_part, which normalize_data.py already
+    # assigns from mood, tense, number and person. Re-deriving it from the raw
+    # label here duplicated that decision and disagreed with it on every past
+    # subjunctive singular. standardize_infl stays as the fallback for rows that
+    # reach this function without a principal_part.
+    fallback = df["infl"].apply(standardize_infl)
+    if "principal_part" in df.columns:
+        df["std_infl"] = (
+            pd.to_numeric(df["principal_part"], errors="coerce")
+            .map(PRINCIPAL_PART_TO_INFL)
+            .fillna(fallback)
+        )
+    else:
+        df["std_infl"] = fallback
 
     # We can no longer just map unique forms blindly, because 'geben' (Inf) and
     # 'geben' (some other context) might differ if we use lemma info.

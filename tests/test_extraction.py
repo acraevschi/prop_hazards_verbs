@@ -12,6 +12,7 @@ from data.corpus_approach_coding import (
     are_vowels_equivalent,
     load_sound_changes,
     standardize_infl,
+    PRINCIPAL_PART_TO_INFL,
 )
 from data.lemmas.enhg_mhg_mapping import DSU
 
@@ -241,6 +242,28 @@ class TestInflectionStandardization(unittest.TestCase):
         self.assertEqual(standardize_infl("Ind.Past.1.Pl"), "PastPl")
         self.assertEqual(standardize_infl("Ind.Past.3.Pl"), "PastPl")
         self.assertEqual(standardize_infl("PastParticiple"), "Ppl")
+
+    def test_past_subjunctive_goes_with_the_plural(self):
+        """
+        The past subjunctive is built on the past plural stem (hulfen -> hülfe),
+        so it belongs to principal part 3 with the plural, whatever its own
+        number is. map_category in data/normalize_data.py already does this;
+        standardize_infl is the fallback and must not disagree.
+        """
+        for label in ("Subj.Past.Sg.3", "Subj.Past.Sg.1", "3.Sg.Prät.Konj",
+                      "1.Sg.Prät.Konj", "(Subj).Past.Sg.3"):
+            self.assertEqual(standardize_infl(label), "PastPl", label)
+        # The indicative singular is unaffected.
+        for label in ("Ind.Past.Sg.3", "3.Sg.Prät.Ind", "*.Past.Sg.3"):
+            self.assertEqual(standardize_infl(label), "PastSg", label)
+
+    def test_agrees_with_principal_part_table(self):
+        """PRINCIPAL_PART_TO_INFL must cover every part map_category assigns."""
+        self.assertEqual(
+            set(PRINCIPAL_PART_TO_INFL), {1, 2, 3, 4}
+        )
+        self.assertEqual(PRINCIPAL_PART_TO_INFL[2], "PastSg")
+        self.assertEqual(PRINCIPAL_PART_TO_INFL[3], "PastPl")
 
 
 class TestDSUAlgorithm(unittest.TestCase):
