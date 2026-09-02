@@ -10,7 +10,7 @@ Hermann Paul (1886) hypothesized that paradigms characterized by multiplexed/red
 
 This project implements:
 1. **Automated Cross-Corpus Lemma Linking**: Unifying lemmas across ReM (MHG) and ReF (ENHG) using DWDS etymological scraping, candidate ranking, and a Disjoint Set Union (DSU) graph algorithm.
-2. **Phonotactically Guarded Root Extraction**: Parsing normalized historical orthography to isolate root vocalic nuclei and consonantal codas without erroneously stripping roots or structural consonants.
+2. **Lemma-Guided Root Extraction**: Parsing normalized historical orthography to isolate root vocalic nuclei and consonantal codas without erroneously stripping roots or structural consonants. Prefix segmentation is read off the corpus's own lemma strings, where ReM marks a prefix with a hyphen (`ge-winnen`) and leaves a bare stem unmarked (`gëben`); ENHG rows inherit the analysis through `lemma_id`. Phonotactic guards remain as a fallback for the lemmas ReM does not cover.
 3. **Diachronic Baseline & Leveling Coding**: Setting pre-1200 MHG baselines and ENHG teleological targets per dialect variety while filtering regular dialect sound changes.
 4. **Bayesian Generalized Additive Mixed Modeling (GAMM)**: Estimating non-linear diachronic trajectories and interactive tensor products of time and frequency using `brms` and Stan.
 
@@ -129,9 +129,17 @@ for those.*
 
 ### Stage 4: Root Extraction, Baselines & Leveling Coding
 ```bash
-# Extract roots with phonotactic guards, calculate pre-1200 anchors, and code leveling outcomes
+# Extract roots, calculate pre-1200 anchors, and code leveling outcomes
 python data/corpus_approach_coding.py
 ```
+
+Three decisions in this stage are worth knowing before reading any number that comes out of it.
+
+**Vowel length is normalized away** (`â` → `a`, `î` → `i`). ReM is edited with Lachmann circumflexes and ReF is not, so treating length as contrastive makes every Class IV and V past plural in ReF (`nâmen`, `gâben`, `wâren`) look like a leveling event the moment the corpus changes at 1350. Measured on this data, that reads as a jump from 16.1% before 1350 to 63.2% after it. Normalizing removes it. A residual discontinuity remains (3.5% to 14.3%) and cannot be separated from time, because ReM and ReF do not overlap in date.
+
+**The past subparadigm therefore has no vocalic contrast in Classes IV and V**, whose ablaut was purely quantitative. Those verbs are recovered through the consonant channel instead: `wësen` is `NA` for the vowel (`a` against `a` is uninformative) and carries its signal in `was ~ wâren`.
+
+**Bipartiteness is decided per pair, with a shape test on each clause.** The past indicative singular is the one endingless cell, so its coda is word-final and every consonant comparison involving it is ambiguous between Verner's Law and Auslautverhärtung. The two have opposite shapes: Verner makes the past *plural* the odd cell out (`wesen ~ was ~ wâren`, s ~ s ~ r), final devoicing makes the past *singular* the odd cell out (`scheiden ~ schiet ~ schieden`, d ~ t ~ d). `step_2_establish_baseline` tests for this directly. There is deliberately no "any Grammatischer Wechsel anywhere and any Ablaut anywhere" clause: nearly every strong verb has ablaut somewhere, so that condition reduces to "any consonant difference at all" and hands the treatment variable to extraction noise.
 
 ### Stage 5: Data & Target Diagnostics (Pre-Modeling Audits)
 

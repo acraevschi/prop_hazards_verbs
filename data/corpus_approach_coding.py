@@ -193,6 +193,35 @@ VALID_ONSETS = {
     "zw",
 }
 
+# Clusters that can only ever be a syllable coda. Seeing one as the onset of a
+# candidate stem means the strip cut into the root: ge- off gelten leaves lten,
+# be- off bergen leaves rgen.
+CODA_CLUSTERS = (
+    "lt",
+    "rg",
+    "rc",
+    "rb",
+    "lz",
+    "lm",
+    "rm",
+    "rn",
+    "ld",
+    "nd",
+    "ng",
+    "nk",
+    "nt",
+)
+
+# Subparadigms whose forms carry a consonantal inflectional ending.
+#
+# The past indicative singular is endingless in MHG: gap, nam, was, wan, gewan.
+# A final -n there is part of the root, not an infinitive or plural marker.
+# Stripping it anyway is what turned gewan into ge- plus wan with the coda w,
+# which handed ge-winnen a consonant alternation the verb has never had. Every
+# other slot does take an ending, so -n on a vowel-final root is removed there
+# (gan, stan, schrien).
+SLOTS_WITH_ENDING = {"Pres", "PastPl", "Ppl"}
+
 
 def load_sound_changes(filepath="data/vowel_changes.csv"):
     """
@@ -373,7 +402,15 @@ def clean_form(form):
     f_norm = unicodedata.normalize("NFD", f)
     f = "".join([c for c in f_norm if not unicodedata.combining(c)])
 
-    # 4. Final filter for valid alphabet (Optional, but safe)
+    # 4. qu -> kw, before anything reads the string for vowels.
+    # DIGRAPH_IPA carries this mapping too, but it is applied to the nucleus
+    # after extraction, which is too late: the vowel regex has already taken the
+    # u of qu as part of the nucleus. That is why quam, the past singular of
+    # komen and one of the most frequent past forms in MHG, came out with the
+    # nucleus "ua" instead of "a".
+    f = f.replace("qu", "kw")
+
+    # 5. Final filter for valid alphabet (Optional, but safe)
     # Keep standard German alphabet + common IPA chars you use
     # Note: \u00DF is ß
     f = re.sub(r"[^a-zäöüßſ\u00E6\u0153\u0283\u02A6\u03C7]", "", f)
@@ -381,147 +418,282 @@ def clean_form(form):
     return f
 
 
-def extract_root_structure(df, form, corpus="MHG", lemma_id=None):
+def _lemma_key(value):
+    """lemma_id as a string, tolerating the float form pandas hands back."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    if not text or text.lower() == "nan":
+        return None
+    return text[:-2] if text.endswith(".0") else text
+
+
+def _onset_of(stem):
+    """The consonants before the first vowel. Empty for a vowel-initial root."""
+    match = re.match(f"^([^{''.join(VOWELS)}]*)", stem)
+    return match.group(1) if match else ""
+
+
+def _nucleus_and_coda(stem, std_infl=None):
     """
-    Robust extraction with Phonotactic Guards to prevent root-eating.
+    Split a prefix-free stem into its first vowel run and the consonants that
+    follow it, with inflectional endings removed.
+
+    std_infl decides the one ambiguous case: a coda consisting of nothing but
+    -n. In the present, the past plural and the participle that -n is an ending
+    and the root is vowel-final (gan, stan, schrien). In the past singular there
+    is no ending, so the -n is the root's own coda (wan, gewan, began). See
+    SLOTS_WITH_ENDING. A missing std_infl is treated as ending-bearing, which is
+    the behaviour every caller had before the argument existed.
+
+    Returns (None, None) when the stem has no vowel.
+    """
+    match = re.search(f"([{''.join(VOWELS)}]+)", stem)
+    if not match:
+        return None, None
+
+    nucleus = match.group(1)
+    post_nucleus = stem[match.end() :]
+    coda_match = re.match(f"^([^{''.join(VOWELS)}]+)", post_nucleus)
+    coda = coda_match.group(1) if coda_match else ""
+
+    takes_ending = std_infl is None or std_infl in SLOTS_WITH_ENDING
+
+    for s in sorted(SUFFIXES, key=len, reverse=True):
+        if not coda.endswith(s):
+            continue
+        if len(coda) > len(s):
+            coda = coda[: -len(s)]
+            break
+        # Deleting the coda outright is only ever right for the -n of a
+        # vowel-final root, and only in a slot that takes an ending.
+        if s in ("n", "en") and takes_ending:
+            coda = ""
+            break
+        # Otherwise protect it (the t of gilt, the p of gap).
+
+    return nucleus, coda
+
+
+def build_lemma_index(df):
+    """
+    Read each lemma_id's morphology off the lemma strings the corpus carries.
+
+    ReM writes a prefixed lemma with a hyphen - ge-winnen, ver-lièsen,
+    über-winten, ent-vâhen - and a separable particle after a slash
+    (slahen/abe>+). That hyphen is the corpus telling us where the root starts,
+    and it is the only signal that separates ge-winnen, where ge- is a prefix,
+    from gëben, where it is not. No phonotactic rule can make that distinction,
+    because ge+ben and ge+wan are the same shape.
+
+    ReF lemmas are modern infinitives with no hyphens (verlieren, behalten), so
+    their prefixes are unmarked and reading them would give a wrong root onset.
+    They are ignored. ENHG rows inherit the analysis through lemma_id, which is
+    the key the rest of the pipeline already joins on. 228 of the 292 lemma_ids
+    get an entry this way, covering 133 of the 197 that appear in ReF; the rest
+    fall back to the phonotactic guards in extract_root_structure.
+
+    Returns {lemma_id: {"prefixes": set, "onsets": set}}.
+    """
+    index = {}
+    if df is None or not hasattr(df, "columns"):
+        return index
+    if "lemma" not in df.columns or "lemma_id" not in df.columns:
+        return index
+
+    rows = df[["lemma_id", "lemma"]]
+    if "corpus" in df.columns:
+        rows = df.loc[df["corpus"] == "MHG", ["lemma_id", "lemma"]]
+    rows = rows.dropna()
+
+    for lemma_id, group in rows.groupby("lemma_id"):
+        key = _lemma_key(lemma_id)
+        if key is None:
+            continue
+        prefixes, onsets = set(), set()
+        for lemma in group["lemma"].unique():
+            base = str(lemma).split("/")[0]  # drop the separable particle
+            parts = base.split("-")
+            root = clean_form(parts[-1])
+            if not root:
+                continue
+            for part in parts[:-1]:
+                prefix = clean_form(part)
+                if prefix:
+                    prefixes.add(prefix)
+            onsets.add(_onset_of(root))
+        if onsets:
+            index[key] = {"prefixes": prefixes, "onsets": onsets}
+
+    return index
+
+
+# Onset spellings that the regular MHG -> ENHG correspondences make equivalent.
+# build_lemma_index reads its roots off ReM lemma strings, so a ReF form has to
+# be recognised across the sound and spelling changes that separate the two
+# corpora, or every ENHG participle of vâhen, slahen and binden looks like a
+# different verb and keeps its prefix.
+ONSET_CLUSTER_FOLD = (("sch", "s"), ("ʃ", "s"))
+ONSET_LETTER_FOLD = str.maketrans(
+    {
+        "v": "f",  # vâhen ~ fangen, vallen ~ fallen
+        "u": "f",  # u and v are allographs
+        "p": "b",  # binden ~ gepunden, Upper German
+        "t": "d",  # and the same for the dentals, which also folds tw ~ dw
+        "c": "k",
+        "q": "k",
+        "ʦ": "z",
+        "ß": "s",
+        "χ": "h",
+    }
+)
+
+
+def _fold_onset(onset):
+    """Reduce an onset to a shape that survives ReM/ReF spelling differences."""
+    for long_form, short_form in ONSET_CLUSTER_FOLD:
+        # slahen ~ schlagen, snîden ~ schneiden, swimmen ~ schwimmen. Only when
+        # something follows, so that sch- before a vowel (schehen) is left alone.
+        if onset.startswith(long_form) and len(onset) > len(long_form):
+            onset = short_form + onset[len(long_form) :]
+            break
+    return onset.translate(ONSET_LETTER_FOLD)
+
+
+def _onset_is_compatible(onset, root_onsets, prefix):
+    """
+    Does a candidate stem begin the way this lemma's root begins?
+
+    Compared after _fold_onset on both sides. Exact match is the normal case.
+    Two relaxations are allowed:
+
+    - One onset extending the other, when both are non-empty. This covers a past
+      stem whose onset is spelled longer than the infinitive's (komen against
+      kwam, from quam). The both-non-empty condition is what keeps be- on beiz:
+      the candidate iz has an empty onset, and an empty string is a prefix of
+      everything, so without it every vowel-initial remainder would be accepted.
+    - The prefix's own final consonant completing the onset. German degeminates
+      at the prefix boundary, so ent- plus trinnen is written entran, and the
+      candidate ran has to be read against the root onset tr.
+    """
+    if not root_onsets:
+        return True
+    if onset in root_onsets:
+        return True
+
+    folded = _fold_onset(onset)
+    folded_roots = {_fold_onset(r) for r in root_onsets}
+
+    if folded in folded_roots:
+        return True
+    if folded:
+        for root_onset in folded_roots:
+            if root_onset and (
+                folded.startswith(root_onset) or root_onset.startswith(folded)
+            ):
+                return True
+    if prefix and _fold_onset(prefix[-1] + onset) in folded_roots:
+        return True
+    return False
+
+
+def extract_root_structure(
+    df, form, corpus="MHG", lemma_id=None, std_infl=None, lemma_index=None
+):
+    """
+    Split a surface form into root nucleus and root coda.
+
+    Prefix stripping is decided by the lemma whenever build_lemma_index has an
+    entry for lemma_id: a prefix comes off only if what is left begins the way
+    that verb's root begins. This is what keeps ge- on gëben while taking it off
+    ge-winnen, and it is why geaz parses as az even though the root is
+    vowel-initial, which no phonotactic guard can allow without also letting
+    be- eat the b of beiz.
+
+    Without an entry the function falls back to phonotactic guards. They are
+    weaker by construction - they reject every vowel-initial remainder, which is
+    wrong for ezzen - so they are a floor, not the intended path.
+
+    std_infl is passed through to _nucleus_and_coda, where it settles whether a
+    final -n is an ending or root material.
     """
     f = clean_form(form)
     if not f:
         return pd.NA, pd.NA
 
-    # --- 1. SMART PREFIX STRIPPING (PHONOTACTIC AWARE) ---
-    prefix_list = list(PREFIXES.get(corpus, PREFIXES["MHG"]))
+    entry = (lemma_index or {}).get(_lemma_key(lemma_id))
+    root_onsets = entry["onsets"] if entry else None
 
-    # We sort prefixes by length so we try longest matches first
-    # But we iterate repeatedly to handle recursive prefixes (e.g. vor-ge-schrieben)
+    # --- 1. PREFIX STRIPPING ---
+    # clean_form the prefixes too. The list holds "über", the forms have had
+    # their diacritics stripped to "uber", and a raw comparison never matched.
+    prefix_list = [clean_form(p) for p in PREFIXES.get(corpus, PREFIXES["MHG"])]
+    if entry:
+        # The lemma may name prefixes the generic list does not carry:
+        # en-bîzen, umbe-, durh-, misse-, vol-.
+        prefix_list.extend(entry["prefixes"])
+    prefix_list = sorted({p for p in prefix_list if p}, key=len, reverse=True)
+
     clean_stem = f
 
     # Safety loop limit to prevent infinite loops (though unlikely)
     for _ in range(3):
         match_found = False
         for p in prefix_list:
-            if clean_stem.startswith(p):
-                candidate = clean_stem[len(p) :]
+            if not clean_stem.startswith(p):
+                continue
+            candidate = clean_stem[len(p) :]
 
-                # --- PHONOTACTIC GUARD ---
-                # Check 1: Vowel Existence
-                # If remainder has no vowels, we definitely stripped the nucleus. Stop.
-                if not any(v in candidate for v in VOWELS):
+            # A strip that removes the nucleus is never right.
+            if not any(v in candidate for v in VOWELS):
+                continue
+
+            onset = _onset_of(candidate)
+
+            # No root starts with a geminate (ge- off gessen) or with a cluster
+            # that can only be a coda (ge- off gelten, be- off bergen).
+            if len(onset) > 1 and (
+                onset[0] == onset[1] or onset.startswith(CODA_CLUSTERS)
+            ):
+                continue
+
+            if root_onsets is not None:
+                if not _onset_is_compatible(onset, root_onsets, p):
+                    continue
+            else:
+                # No lemma analysis. Assume a vowel-initial remainder means the
+                # strip cut into the root, which is right for beiz and wrong for
+                # the handful of vowel-initial roots the lemma path covers.
+                if not onset:
+                    continue
+                # And refuse a strip that would leave the root with no coda at
+                # all while the unstripped stem still has one: ge- off gëben
+                # leaves ben, whose only consonant after the nucleus is the -n
+                # of the infinitive.
+                if (
+                    not _nucleus_and_coda(candidate, std_infl)[1]
+                    and _nucleus_and_coda(clean_stem, std_infl)[1]
+                ):
                     continue
 
-                # Check 2: Onset Validity
-                # Extract the onset (consonants before the first vowel)
-                # We use the normalized vowel set for regex matching
-                v_pattern = f"[{''.join(VOWELS)}]"
-                onset_match = re.search(f"^([^{''.join(VOWELS)}]+)", candidate)
-
-                if onset_match:
-                    onset = onset_match.group(1)
-
-                    # Guard A: Geminates (e.g., 'zz', 'ss', 'mm')
-                    # Roots never start with geminates. If we see one, we stripped 'ge' from 'gessen'.
-                    if len(onset) > 1 and onset[0] == onset[1]:
-                        continue  # Invalid strip
-
-                    # Guard B: Illegal Clusters (e.g., 'lt', 'rg', 'nc')
-                    # If onset is a cluster (>1 char) and NOT in our whitelist, it's invalid.
-                    # Note: 'sch' is 3 chars, but in VALID_ONSETS. 'lt' is not.
-                    if len(onset) > 1 and onset not in VALID_ONSETS:
-                        # Edge case: 'sch' might be parsed as 's', 'c', 'h' if not careful
-                        # But our onset is raw string.
-                        # We must check if the *start* of the onset is a valid digraph/trigraph
-                        # or if the whole onset is allowed.
-
-                        # Simple check: Is the specific cluster in the allowed list?
-                        # Or does it start with a valid 3-char (sch) or 2-char onset?
-                        is_valid_cluster = False
-                        if onset in VALID_ONSETS:
-                            is_valid_cluster = True
-                        else:
-                            # Check prefixes of the onset (e.g. 'sch' in 'schri...')
-                            # Actually, regex `^[^vowels]+` grabs all initial consonants.
-                            # 'schreiben' -> onset 'schr'. 'schr' not in list.
-                            # But 'schr' starts with 'sch' (valid) + 'r'.
-                            # German allows complex onsets like 'schr', 'spr', 'str'.
-                            # Let's simplify:
-                            # If it starts with an illegal PAIR, reject.
-                            # Illegal pairs: 'lt', 'rg', 'nt', 'mp'.
-                            # Legal starts: valid singletons or VALID_ONSETS.
-                            pass  # Too complex for simple logic?
-
-                        # REVISED GUARD B:
-                        # Just block specific known "Coda" clusters that appear after 'ge-'/'be-' stripping
-                        # Common culprits: lt (gelten), rg (bergen), rc (borc), rb (sterben)
-                        if onset.startswith(
-                            (
-                                "lt",
-                                "rg",
-                                "rc",
-                                "rb",
-                                "lz",
-                                "lm",
-                                "rm",
-                                "rn",
-                                "ld",
-                                "nd",
-                                "ng",
-                                "nk",
-                                "nt",
-                            )
-                        ):
-                            continue
-
-                # If we passed guards, accept the strip
-                clean_stem = candidate
-                match_found = True
-                break  # Restart loop to check for next prefix (e.g. vor-ge-)
+            clean_stem = candidate
+            match_found = True
+            break  # Restart loop to check for next prefix (e.g. vor-ge-)
 
         if not match_found:
             break
 
-    # --- 2. EXTRACT NUCLEUS ---
-    v_pattern = f"[{''.join(VOWELS)}]+"
-    match = re.search(f"({v_pattern})", clean_stem)
-
-    if not match:
+    # --- 2. NUCLEUS AND CODA ---
+    nucleus, final_coda = _nucleus_and_coda(clean_stem, std_infl)
+    if nucleus is None:
         return pd.NA, pd.NA
 
-    nucleus = match.group(1)
-    post_nucleus = clean_stem[match.end() :]
-
-    # --- 3. EXTRACT RAW CODA ---
-    coda_match = re.search(f"^([^{''.join(VOWELS)}]+)", post_nucleus)
-    final_coda = coda_match.group(1) if coda_match else ""
-
-    # --- 4. PROTECTED SUFFIX STRIPPING ---
-    sorted_suffixes = sorted(SUFFIXES, key=len, reverse=True)
-
-    for s in sorted_suffixes:
-        if final_coda.endswith(s):
-            # Constraint: Don't strip if it leaves the coda empty
-            # UNLESS the remaining stem implies a vowel-final root (like 'schrien').
-            # Heuristic: If stripping 'n' leaves empty, allow it ONLY if nucleus is a diphthong/long vowel?
-            # Safer: Just STRICTLY enforce "Root must have coda" for strong verbs?
-            # Most strong verbs end in C. Exceptions: gan, stan, tuon, schrien, spien.
-            # If we enforce len > 0, we break 'schrien'.
-            # If we allow len == 0, we might break 'geschehen' (h -> empty).
-
-            # SPECIFIC FIX FOR 'GESCHEHEN' (Coda 'h') vs Suffix 'en'
-            # 'h' does not end with 'en'. So 'h' is safe.
-            # The previous issue was likely 'schehen' -> 'h' -> interpreted as empty?
-
-            if len(final_coda) > len(s):
-                final_coda = final_coda[: -len(s)]
-                break
-            elif len(final_coda) == len(s):
-                # Only strip entire coda if it is exactly 'n' or 'en' (common infinitive markers on vowel roots)
-                if s in ["n", "en"]:
-                    final_coda = ""
-                    break
-                # Otherwise protect it (e.g. 't' in 'gilt')
-                pass
-
-    # --- 5. CLEANUP ---
+    # --- 3. CLEANUP ---
     for k, v in DIGRAPH_IPA.items():
         final_coda = final_coda.replace(k, v)
         nucleus = nucleus.replace(k, v)
@@ -536,7 +708,7 @@ def extract_root_structure(df, form, corpus="MHG", lemma_id=None):
 # ------------------------------------------------------------------------------
 
 
-def step_1_preprocessing(df):
+def step_1_preprocessing(df, lemma_index=None):
     print("--- Step 1: Preprocessing & Root Extraction (Lemma-Aware) ---")
     df = df.copy()
 
@@ -559,23 +731,38 @@ def step_1_preprocessing(df):
     else:
         df["std_infl"] = fallback
 
+    if lemma_index is None:
+        lemma_index = build_lemma_index(df)
+    print(f"   Lemma morphology available for {len(lemma_index)} lemma_ids.")
+
     # We can no longer just map unique forms blindly, because 'geben' (Inf) and
     # 'geben' (some other context) might differ if we use lemma info.
-    # However, for speed, we can group by (Form, Corpus, Lemma).
+    # std_infl is part of the key because extraction now depends on it: the
+    # final -n of gewan is root material in the past singular and an ending
+    # everywhere else, so the same string can parse two ways.
 
-    unique_contexts = df[["norm", "corpus", "lemma_id"]].drop_duplicates()
+    context_cols = ["norm", "corpus", "lemma_id", "std_infl"]
+    unique_contexts = df[context_cols].drop_duplicates()
 
     print(f"   Extracting roots for {len(unique_contexts)} unique form contexts...")
 
     results = []
     for _, row in tqdm(unique_contexts.iterrows(), total=len(unique_contexts)):
         # PASS THE LEMMA HERE
-        v, c = extract_root_structure(df, row["norm"], row["corpus"], row["lemma_id"])
+        v, c = extract_root_structure(
+            df,
+            row["norm"],
+            row["corpus"],
+            row["lemma_id"],
+            std_infl=row["std_infl"],
+            lemma_index=lemma_index,
+        )
         results.append(
             {
                 "norm": row["norm"],
                 "corpus": row["corpus"],
                 "lemma_id": row["lemma_id"],
+                "std_infl": row["std_infl"],
                 "extracted_vowel": v,
                 "extracted_coda": c,
             }
@@ -583,7 +770,7 @@ def step_1_preprocessing(df):
 
     # Map back
     res_df = pd.DataFrame(results)
-    df = df.merge(res_df, on=["norm", "corpus", "lemma_id"], how="left")
+    df = df.merge(res_df, on=context_cols, how="left")
 
     return df
 
@@ -665,12 +852,51 @@ def step_2_establish_baseline(df):
         # 3. PastSg vs PastPl (The classic definition)
         ab_sg_pl, gw_sg_pl = check_alternation(row, "pastsg", "pastpl")
 
-        # Global Bipartite Definition:
-        # If ANY of the three pairs shows BOTH Ablaut AND GW.
+        # Global Bipartite Definition.
+        #
+        # The past indicative singular is the one endingless cell, so its coda
+        # is word-final and subject to Auslautverhärtung. That makes every
+        # consonant comparison involving it ambiguous between Verner's Law and
+        # plain final devoicing, and the two have opposite paradigmatic shapes:
+        #
+        #   Verner        the past PLURAL is the odd cell out
+        #                 wesen  ~ was  ~ wâren     s  ~ s ~ r
+        #                 kiesen ~ kôs  ~ kurn      s  ~ s ~ r
+        #                 ziehen ~ zôch ~ zugen     h  ~ χ ~ g
+        #                 quëden ~ quat ~ quâden    t  ~ t ~ d
+        #
+        #   devoicing     the past SINGULAR is the odd cell out
+        #                 scheiden ~ schiet ~ schieden   d ~ t ~ d
+        #                 binden   ~ bant   ~ bunden     d ~ t ~ d
+        #
+        # So the two clauses below each carry a shape test:
+        #
+        # 1. A past sg ~ past pl difference is Verner only if the past singular
+        #    still agrees with the present. This is the clause that recovers the
+        #    Class IV and V Verner verbs, whose past ablaut was purely
+        #    quantitative (a ~ â) and is invisible once vowel length is
+        #    normalised away - and normalised away it must be, or the ReM/ReF
+        #    transcription change at 1350 reads as a leveling event.
+        #
+        # 2. A present ~ past sg difference is Verner only if the past plural
+        #    shares it, which puts the alternation in a medial position where
+        #    devoicing cannot reach. This is what keeps snîden ~ sneit ~ sniten
+        #    (d ~ t ~ t) and drops scheiden ~ schiet ~ schieden (d ~ t ~ d).
+        #
+        # The present ~ past pl pair needs no such test: both cells carry an
+        # ending, so neither coda is word-final.
+        #
+        # Note what is deliberately absent: an "any GW anywhere and any ablaut
+        # anywhere" clause. Nearly every strong verb has ablaut somewhere, so
+        # that condition reduces to "any consonant difference at all" and hands
+        # the treatment variable over to extraction noise.
+        gw_verner_sg_pl = gw_sg_pl and not gw_pres_sg
+        gw_paradigmatic_pres_sg = gw_pres_sg and not gw_sg_pl
+
         is_bipartite = (
-            (ab_pres_sg and gw_pres_sg)
+            (ab_pres_sg and gw_paradigmatic_pres_sg)
             or (ab_pres_pl and gw_pres_pl)
-            or (ab_sg_pl and gw_sg_pl)
+            or gw_verner_sg_pl
         )
 
         return pd.Series(
@@ -700,7 +926,9 @@ def step_2_establish_baseline(df):
     return anchors_pivoted
 
 
-def step_3_establish_targets(df, nhg_file="data/lemmas/nhg_targets.csv"):
+def step_3_establish_targets(
+    df, nhg_file="data/lemmas/nhg_targets.csv", lemma_index=None
+):
     """
     Identifies the 'Teleological Target' (End State) for both Present and Past.
     Returns a DataFrame unique by (lemma_id, variety).
@@ -725,17 +953,31 @@ def step_3_establish_targets(df, nhg_file="data/lemmas/nhg_targets.csv"):
     # Modern German forms, where a curated one exists. These take priority over
     # anything the corpus can offer, because the corpus is too thin at the late
     # end to name an endpoint. The corpus rule stays as the fallback.
+    if lemma_index is None:
+        lemma_index = build_lemma_index(df)
+
     nhg = {}
     if os.path.exists(nhg_file):
         table = pd.read_csv(nhg_file, dtype=str).fillna("")
+        # nhg_infinitive is an infinitive and nhg_preterite a 3rd singular
+        # (barg, brach, fand), so they belong to different slots and the -n rule
+        # has to see that.
         for _, entry in table.iterrows():
             parsed = {}
-            for tense, column in (("pres", "nhg_infinitive"), ("past", "nhg_preterite")):
+            for tense, column, slot in (
+                ("pres", "nhg_infinitive", "Pres"),
+                ("past", "nhg_preterite", "PastSg"),
+            ):
                 form = entry[column].strip()
                 if not form:
                     continue
                 vowel, coda = extract_root_structure(
-                    df, form, corpus="ENHG", lemma_id=entry["lemma_id"]
+                    df,
+                    form,
+                    corpus="ENHG",
+                    lemma_id=entry["lemma_id"],
+                    std_infl=slot,
+                    lemma_index=lemma_index,
                 )
                 if not pd.isna(vowel):
                     parsed[tense] = (vowel, coda)
@@ -1064,14 +1306,21 @@ def run_pipeline(
     """
     df = pd.read_csv(input_file, dtype=str)
 
+    # The lemma strings carry the prefix analysis. Read it once and hand the
+    # same index to every stage that extracts a root, so the corpus forms and
+    # the modern target forms are segmented by the same rule.
+    lemma_index = build_lemma_index(df)
+
     # 1. Preprocess & Extract Root Parts
-    df_processed = step_1_preprocessing(df)
+    df_processed = step_1_preprocessing(df, lemma_index=lemma_index)
 
     # 2. Get Anchors (Start State)
     baseline_df = step_2_establish_baseline(df_processed)
 
     # 3. Get Targets (End State)
-    target_df = step_3_establish_targets(df_processed, nhg_file=nhg_file)
+    target_df = step_3_establish_targets(
+        df_processed, nhg_file=nhg_file, lemma_index=lemma_index
+    )
 
     # 4. Code Variables
     final_df = step_4_coding_outcome(df_processed, baseline_df, target_df)

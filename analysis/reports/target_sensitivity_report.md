@@ -29,10 +29,10 @@ A central methodological requirement in quantitative diachronic morphology is de
 
 | Comparison Regime | Morphological Element | Overlapping Observations | Concordant Labels | Discordant Labels | Concordance Rate (%) | Label Flips (0 -> 1) | Label Flips (1 -> 0) |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Hybrid Fallback vs Baseline** | `Vowels` | 35,122 | 35,122 | 0 | **100.00%** | 0 | 0 |
-| **Hybrid Fallback vs Baseline** | `Consonants` | 1,295 | 1,295 | 0 | **100.00%** | 0 | 0 |
-| **Strict (>=1500) vs Baseline** | `Vowels` | 34,720 | 34,720 | 0 | **100.00%** | 0 | 0 |
-| **Strict (>=1500) vs Baseline** | `Consonants` | 1,269 | 1,269 | 0 | **100.00%** | 0 | 0 |
+| **Hybrid Fallback vs Baseline** | `Vowels` | 35,556 | 35,556 | 0 | **100.00%** | 0 | 0 |
+| **Hybrid Fallback vs Baseline** | `Consonants` | 1,298 | 1,298 | 0 | **100.00%** | 0 | 0 |
+| **Strict (>=1500) vs Baseline** | `Vowels` | 35,140 | 35,140 | 0 | **100.00%** | 0 | 0 |
+| **Strict (>=1500) vs Baseline** | `Consonants` | 1,272 | 1,272 | 0 | **100.00%** | 0 | 0 |
 
 ---
 
@@ -42,9 +42,9 @@ This table evaluates the direct phonological agreement between target vowels/cod
 
 | Target Slot | Total Evaluated Groups (Lemma x Variety) | Valid in Both Regimes | Identical Phonological Targets | Target Agreement Rate (%) |
 | :--- | :---: | :---: | :---: | :---: |
-| **Past Tense Vowel Target** | 345 | 112 | 64 | **57.14%** |
-| **Past Tense Coda Target** | 345 | 112 | 84 | **75.00%** |
-| **Present Tense Vowel Target** | 345 | 271 | 196 | **72.32%** |
+| **Past Tense Vowel Target** | 345 | 112 | 63 | **56.25%** |
+| **Past Tense Coda Target** | 345 | 112 | 87 | **77.68%** |
+| **Present Tense Vowel Target** | 345 | 271 | 195 | **71.96%** |
 | **Present Tense Coda Target** | 345 | 271 | 215 | **79.34%** |
 
 > **Notes on Target Agreement**:

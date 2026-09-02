@@ -224,6 +224,65 @@ def print_concentration(long):
             )
 
 
+def print_channel_breakdown(coded_path):
+    """
+    Leveling rates disaggregated by contrast channel.
+
+    The marking_type table above collapses two questions into one with an OR:
+    did this past token level to the present stem, and did the past singular and
+    plural level to each other. Their base rates differ by an order of
+    magnitude, and the mixture of the two differs by marking type, so the
+    collapsed rate is not a rate of anything in particular. This table separates
+    them.
+
+    Two counts are given for each cell:
+
+      tokens  every coded row, which is what a raw read of coded_output.csv
+              gives and what the printed rates used to rest on;
+      obs     after the de-duplication run_brms.R performs with unique(). `id`
+              is a document id, so that collapses all tokens of one lemma in one
+              document that share a date, a slot and an outcome. It is roughly a
+              factor of two, it is not uniform across cells, and it is the unit
+              the models are actually fitted on.
+
+    Report the obs column. The token column is here so the difference between
+    the two is visible rather than a source of quiet disagreement between this
+    script and the fits.
+    """
+    df = pd.read_csv(coded_path, low_memory=False)
+    for col in ("is_leveled_vowel_pres", "is_leveled_vowel_past",
+                "is_leveled_cons_pres", "is_leveled_cons_past", "is_bipartite"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df[df["is_bipartite"].notna()]
+
+    print("\nLeveling by contrast channel (disaggregated)")
+    print(f"  {'channel':<28}{'marking':<13}{'tokens':>8}{'obs':>8}"
+          f"{'leveled':>9}{'rate':>9}")
+
+    channels = [
+        ("is_leveled_vowel_past", "vowel (past sg ~ past pl)", (0, 1)),
+        ("is_leveled_vowel_pres", "vowel (pres ~ past)", (0, 1)),
+        ("is_leveled_cons_past", "cons (past sg ~ past pl)", (1,)),
+        ("is_leveled_cons_pres", "cons (pres ~ past)", (1,)),
+    ]
+    names = {0: "unipartite", 1: "bipartite"}
+
+    for col, label, markings in channels:
+        present = df[df[col].notna()]
+        # Same key run_brms.R's unique() reduces on, restricted to the columns
+        # that identify one observation of this one channel.
+        deduped = present.drop_duplicates(
+            ["lemma_id", "variety", "corpus", "id", "date", "std_infl", col]
+        )
+        for marking in markings:
+            tokens = present[present["is_bipartite"] == marking]
+            obs = deduped[deduped["is_bipartite"] == marking]
+            n_obs, leveled = len(obs), int(obs[col].sum())
+            rate = 100 * leveled / n_obs if n_obs else 0.0
+            print(f"  {label:<28}{names[marking]:<13}{len(tokens):>8,}"
+                  f"{n_obs:>8,}{leveled:>9,}{rate:>8.2f}%")
+
+
 def write_csv(rows, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as handle:
@@ -288,7 +347,8 @@ def main():
     print(f"Reshaped {len(long):,} modeling observations across "
           f"{long['lemma_id'].nunique()} lemmas from {args.coded}")
     rows = marking_table(long)
-    print_marking_table(rows, "Marking type")
+    print_marking_table(rows, "Marking type (Overall / OR-collapsed)")
+    print_channel_breakdown(args.coded)
     print_periods(long)
     print_concentration(long)
 

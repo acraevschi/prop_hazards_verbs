@@ -45,13 +45,13 @@ When studying historical language change across 600 years (Middle High German ~1
 | :--- | :---: | :--- |
 | **Raw MHG Corpus (ReM)** | 2,945 | Unique surface lemma strings extracted from ReM JSON |
 | **Raw ENHG Corpus (ReF)** | 1,754 | Unique surface lemma strings extracted from ReF XML |
-| **Unified Lemma Families (DSU)** | 455 | Connected components created via DWDS scraping + DSU |
-| **Normalized Lemma Families** | 291 | Retained strong verb lemmas with token count > 10 |
+| **Unified Lemma Families (DSU)** | 456 | Connected components created via DWDS scraping + DSU |
+| **Normalized Lemma Families** | 292 | Retained strong verb lemmas with token count > 10 |
 | **Lemmas Attested Pre-1200** | 222 | Lemmas attested in MHG before 1200 CE |
 | **Lemmas Successfully Anchored** | 197 | Modal vowels/codas resolved for pre-1200 baseline |
-| **Lemmas in Final GAMM Model** | 88 | Lemmas contributing valid binary outcome observations |
+| **Lemmas in Final GAMM Model** | 106 | Lemmas contributing valid binary outcome observations |
 
-> **Retention Note**: Out of 291 normalized lemma families, 197 (67.7%) were successfully anchored with pre-1200 baselines.
+> **Retention Note**: Out of 292 normalized lemma families, 197 (67.5%) were successfully anchored with pre-1200 baselines.
 
 ---
 
@@ -64,7 +64,7 @@ When studying historical language change across 600 years (Middle High German ~1
 | **Past Indicative Subset (Coded)** | 49,616 | 33.0% | Past Singular and Past Plural subparadigms |
 | **Tokens with Valid Baseline** | 48,273 | 97.3% | Successfully matched to pre-1200 dialect anchor |
 | **Tokens Dropped (Missing Baseline)** | 1,343 | 2.7% | Excluded due to no pre-1200 attestation in dialect |
-| **Final Analyzed Rows in GAMM** | 13,184 | 27.3% | Reshaped, non-redundant observations for brms modeling |
+| **Final Analyzed Rows in GAMM** | 17,497 | 36.2% | Reshaped, non-redundant observations for brms modeling |
 
 ---
 
@@ -72,26 +72,26 @@ When studying historical language change across 600 years (Middle High German ~1
 
 | Classification | Count | Description |
 | :--- | :---: | :--- |
-| **Transitions Filtered by Sound Change (Past)** | 7,660 | Past targets matching anchor via regular dialect sound change |
-| **Transitions Filtered by Sound Change (Pres)** | 1,355 | Present targets matching anchor via regular dialect sound change |
-| **Total Transitions Filtered as Sound Change** | 9,015 | Prevented from false positive leveling coding |
-| **Genuine Analogical Leveling (`has_levelled = 1`)** | 532 | Token matched target and broke from historical anchor |
-| **Preserved / Resisted Leveling (`has_levelled = 0`)** | 12,652 | Token maintained historical anchor state |
+| **Transitions Filtered by Sound Change (Past)** | 7,425 | Past targets matching anchor via regular dialect sound change |
+| **Transitions Filtered by Sound Change (Pres)** | 1,545 | Present targets matching anchor via regular dialect sound change |
+| **Total Transitions Filtered as Sound Change** | 8,970 | Prevented from false positive leveling coding |
+| **Genuine Analogical Leveling (`has_levelled = 1`)** | 655 | Token matched target and broke from historical anchor |
+| **Preserved / Resisted Leveling (`has_levelled = 0`)** | 16,842 | Token maintained historical anchor state |
 
 ### Leveling Rate by Marking Type
 
 | Marking Type | Total Observations | Leveled (1) | Resisted (0) | Leveling Rate (%) |
 | :--- | :---: | :---: | :---: | :---: |
-| `consonant_bipartite` | 304 | 63 | 241 | 20.72% |
-| `vowel_bipartite` | 705 | 3 | 702 | 0.43% |
-| `vowel_unipartite` | 12,175 | 466 | 11,709 | 3.83% |
+| `consonant_bipartite` | 972 | 145 | 827 | 14.92% |
+| `vowel_bipartite` | 1,676 | 35 | 1,641 | 2.09% |
+| `vowel_unipartite` | 14,849 | 475 | 14,374 | 3.20% |
 
 ### Leveling Rate by Macro-Variety
 
 | Variety | Total Observations | Leveled (1) | Resisted (0) | Leveling Rate (%) |
 | :--- | :---: | :---: | :---: | :---: |
-| Central German | 4,587 | 132 | 4,455 | 2.88% |
-| Upper German | 8,597 | 400 | 8,197 | 4.65% |
+| Central German | 6,163 | 198 | 5,965 | 3.21% |
+| Upper German | 11,334 | 457 | 10,877 | 4.03% |
 
 ---
 *Report generated automatically by `analysis/attrition_diagnostics.py`.*

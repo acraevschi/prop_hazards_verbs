@@ -1,6 +1,6 @@
 "Model","Max_Rhat","Pct_Rhat_LE_1.01","Min_Bulk_ESS","Min_Tail_ESS","Divergences","Max_Treedepth_Hits"
-"Tensor (k=10)",1.0056,"100.0%",1211,2569,0,0
-"Smooth interaction (k=10)",1.0071,"100.0%",777,1666,0,0
-"Tensor | Token Freq. (k=10)",1.0043,"100.0%",1078,634,0,2000
-"Tensor (k=4)",1.0039,"100.0%",1059,1253,9,0
-"Smooth interaction (k=4)",1.0086,"100.0%",1221,1492,1,0
+"Tensor (k=10)",1.011,"100.0%",568,786,0,2000
+"Smooth interaction (k=10)",1.01,"100.0%",792,834,0,8000
+"Tensor | Token Freq. (k=10)",1.0085,"100.0%",913,422,1,0
+"Tensor (k=4)",1.004,"100.0%",1244,1285,1,0
+"Smooth interaction (k=4)",1.0048,"100.0%",1612,1869,13,0

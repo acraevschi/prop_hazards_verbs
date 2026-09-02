@@ -5,14 +5,18 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import pandas as pd
+
 from data.corpus_approach_coding import (
     clean_form,
     extract_root_structure,
+    build_lemma_index,
     are_cons_equivalent,
     are_vowels_equivalent,
     load_sound_changes,
     standardize_infl,
     PRINCIPAL_PART_TO_INFL,
+    SLOTS_WITH_ENDING,
 )
 from data.lemmas.enhg_mhg_mapping import DSU
 
@@ -202,6 +206,21 @@ class TestPhonotacticGuards(unittest.TestCase):
         self.assertEqual(extract_root_structure(None, "begraben", corpus="MHG"), ("a", "b"))
         self.assertEqual(extract_root_structure(None, "zerbrechen", corpus="MHG"), ("e", "χ"))
 
+    def test_uber_prefix_stripping(self):
+        # Diacritic-normalized prefixes like 'über' must match cleanly
+        self.assertEqual(extract_root_structure(None, "überwant", corpus="MHG"), ("a", "n"))
+        self.assertEqual(extract_root_structure(None, "überlas", corpus="MHG"), ("a", "s"))
+        self.assertEqual(extract_root_structure(None, "überzogen", corpus="MHG"), ("o", "g"))
+
+    def test_root_eating_protection(self):
+        # Roots starting with 'be-', 'er-', 'geb-' must NOT have their root onset/nucleus eaten
+        self.assertEqual(extract_root_structure(None, "beiz", corpus="MHG"), ("ei", "z"))
+        self.assertEqual(extract_root_structure(None, "beizen", corpus="MHG"), ("ei", "z"))
+        self.assertEqual(extract_root_structure(None, "erbeiten", corpus="MHG"), ("ei", "t"))
+        self.assertEqual(extract_root_structure(None, "geben", corpus="MHG"), ("e", "b"))
+        self.assertEqual(extract_root_structure(None, "gegeben", corpus="MHG"), ("e", "b"))
+        self.assertEqual(extract_root_structure(None, "vergeben", corpus="MHG"), ("e", "b"))
+
 
 class TestEquivalenceSets(unittest.TestCase):
     def test_consonant_devoicing_and_spelling(self):
@@ -274,6 +293,215 @@ class TestDSUAlgorithm(unittest.TestCase):
         dsu.union(("ENHG", "sehen"), ("MHG", "sehn"))
 
         self.assertEqual(dsu.find(("ENHG", "ansehen")), dsu.find(("MHG", "ansehn")))
+
+
+# A miniature stand-in for the corpus lemma table. ReM marks a prefixed lemma
+# with a hyphen and leaves an unprefixed one bare, and that contrast is the
+# whole signal build_lemma_index reads.
+LEMMA_ROWS = pd.DataFrame(
+    {
+        "lemma_id": [
+            "122", "86", "104", "298", "298", "275", "9", "88", "17", "325", "51",
+        ],
+        "lemma": [
+            "ge-winnen",     # ge- IS a prefix
+            "g\u00ebben",        # ge- is NOT a prefix
+            "ezzen",         # vowel-initial root
+            "b\u00eezen",        # one lemma_id, two lemma strings
+            "en-b\u00eezen",     # ... and the second one declares en-
+            "\u00fcber-winten",
+            "st\u00e2n",
+            "ent-trinnen",
+            "zi\u00e8hen",
+            "ge-w\u00ebsen",
+            "bergen",
+        ],
+        "corpus": ["MHG"] * 11,
+    }
+)
+
+
+class TestLemmaIndex(unittest.TestCase):
+    def setUp(self):
+        self.index = build_lemma_index(LEMMA_ROWS)
+
+    def test_hyphen_marks_a_prefix_and_bare_lemma_does_not(self):
+        # The pair that no phonotactic rule can separate: ge+winnen against
+        # g(e)+eben. Only the hyphen tells them apart.
+        self.assertEqual(self.index["122"]["onsets"], {"w"})
+        self.assertIn("ge", self.index["122"]["prefixes"])
+        self.assertEqual(self.index["86"]["onsets"], {"g"})
+        self.assertEqual(self.index["86"]["prefixes"], set())
+
+    def test_vowel_initial_root_is_recorded_as_such(self):
+        self.assertEqual(self.index["104"]["onsets"], {""})
+
+    def test_prefixes_union_across_a_lemma_id(self):
+        # b\u00eezen and en-b\u00eezen are the same verb; the declared prefix from
+        # either string has to be available to both.
+        self.assertEqual(self.index["298"]["onsets"], {"b"})
+        self.assertIn("en", self.index["298"]["prefixes"])
+
+    def test_prefix_is_cleaned_like_the_forms(self):
+        # PREFIXES holds "\u00fcber" while forms have been reduced to "uber".
+        self.assertIn("uber", self.index["275"]["prefixes"])
+
+    def test_enhg_lemmas_are_ignored(self):
+        # ReF lemmas are modern infinitives with unmarked prefixes; reading
+        # "verlieren" as a root would record the onset v instead of l.
+        rows = pd.DataFrame(
+            {"lemma_id": ["7"], "lemma": ["verlieren"], "corpus": ["ENHG"]}
+        )
+        self.assertEqual(build_lemma_index(rows), {})
+
+    def test_missing_frame_is_tolerated(self):
+        self.assertEqual(build_lemma_index(None), {})
+        self.assertEqual(build_lemma_index(pd.DataFrame({"a": [1]})), {})
+
+
+class TestLemmaGuidedStripping(unittest.TestCase):
+    """
+    The pair the phonotactic guards cannot do.
+
+    ge-winnen and g\u00ebben are the same string shape: prefix-looking ge, then a
+    single consonant, then the ending. Stripping ge from both gives ben and wan.
+    Anything that gets one right by shape alone gets the other wrong, which is
+    how gewan came to be parsed as the root wan with the coda w and handed
+    ge-winnen a consonant alternation it has never had.
+    """
+
+    def setUp(self):
+        self.index = build_lemma_index(LEMMA_ROWS)
+
+    def strip(self, form, lemma_id, std_infl):
+        return extract_root_structure(
+            None,
+            form,
+            corpus="MHG",
+            lemma_id=lemma_id,
+            std_infl=std_infl,
+            lemma_index=self.index,
+        )
+
+    def test_prefix_comes_off_when_the_lemma_declares_it(self):
+        # ge-winnen ~ gewan ~ gewunnen: ablaut i ~ a ~ u, coda n throughout.
+        self.assertEqual(self.strip("gewinnen", "122", "Pres"), ("i", "n"))
+        self.assertEqual(self.strip("gewan", "122", "PastSg"), ("a", "n"))
+        self.assertEqual(self.strip("gewunnen", "122", "PastPl"), ("u", "n"))
+
+    def test_prefix_stays_on_when_the_lemma_does_not_declare_it(self):
+        # g\u00ebben ~ gap ~ g\u00e2ben: the b is the root coda, not a prefix boundary.
+        self.assertEqual(self.strip("geben", "86", "Pres"), ("e", "b"))
+        self.assertEqual(self.strip("gegeben", "86", "Ppl"), ("e", "b"))
+        self.assertEqual(self.strip("gap", "86", "PastSg"), ("a", "p"))
+        self.assertEqual(self.strip("gaben", "86", "PastPl"), ("a", "b"))
+
+    def test_vowel_initial_roots_survive(self):
+        # ezzen ~ az ~ \u00e2zen. The phonotactic fallback rejects every
+        # vowel-initial remainder and so loses these; the lemma path keeps them.
+        self.assertEqual(self.strip("geaz", "104", "PastSg"), ("a", "z"))
+        self.assertEqual(self.strip("ezzen", "104", "Pres"), ("e", "z"))
+
+    def test_class_one_diphthong_is_not_eaten(self):
+        # be- off beiz leaves iz, collapsing the Class I ei ~ i ablaut.
+        self.assertEqual(self.strip("beiz", "298", "PastSg"), ("ei", "z"))
+        # en-b\u00eezen declares en-, so enbeiz reduces to the same root.
+        self.assertEqual(self.strip("enbeiz", "298", "PastSg"), ("ei", "z"))
+
+    def test_uber_prefix_matches_after_diacritic_stripping(self):
+        self.assertEqual(self.strip("\u00fcberwant", "275", "PastSg"), ("a", "n"))
+        self.assertEqual(self.strip("\u00fcberwinden", "275", "Pres"), ("i", "n"))
+
+    def test_contracted_vowel_final_roots(self):
+        # st\u00e2n is vowel-final, so be-/ver- must come off and the -n must go.
+        self.assertEqual(self.strip("bestan", "9", "Pres"), ("a", ""))
+        self.assertEqual(self.strip("verstan", "9", "Pres"), ("a", ""))
+
+    def test_degemination_at_the_prefix_boundary(self):
+        # ent- plus trinnen is written entran, so the candidate ran has to be
+        # read against the root onset tr.
+        self.assertEqual(self.strip("entran", "88", "PastSg"), ("a", "n"))
+        self.assertEqual(self.strip("entrinnen", "88", "Pres"), ("i", "n"))
+
+
+class TestInflectionAwareEndings(unittest.TestCase):
+    """
+    A coda of nothing but -n is an ending in the present, the past plural and
+    the participle, and root material in the past singular.
+    """
+
+    def test_slot_table(self):
+        self.assertEqual(SLOTS_WITH_ENDING, {"Pres", "PastPl", "Ppl"})
+
+    def test_past_singular_keeps_its_root_n(self):
+        self.assertEqual(
+            extract_root_structure(None, "wan", corpus="MHG", std_infl="PastSg"),
+            ("a", "n"),
+        )
+        self.assertEqual(
+            extract_root_structure(None, "began", corpus="MHG", std_infl="PastSg"),
+            ("a", "n"),
+        )
+
+    def test_other_slots_drop_the_ending(self):
+        # gan and schrien are genuinely vowel-final roots.
+        self.assertEqual(
+            extract_root_structure(None, "gan", corpus="MHG", std_infl="Pres"),
+            ("a", ""),
+        )
+        self.assertEqual(
+            extract_root_structure(None, "schrien", corpus="MHG", std_infl="Pres"),
+            ("ie", ""),
+        )
+
+    def test_absent_slot_behaves_like_an_ending_bearing_one(self):
+        self.assertEqual(
+            extract_root_structure(None, "schrien", corpus="MHG"), ("ie", "")
+        )
+
+    def test_a_coda_that_is_not_bare_n_is_never_emptied(self):
+        # Only a bare -n is ever deleted outright. The t of gat and the p of
+        # gap are the whole coda and are not the infinitive marker, so they
+        # stay, and the verb does not silently become vowel-final.
+        self.assertEqual(
+            extract_root_structure(None, "gat", corpus="MHG", std_infl="Pres"),
+            ("a", "t"),
+        )
+        self.assertEqual(
+            extract_root_structure(None, "gap", corpus="MHG", std_infl="PastSg"),
+            ("a", "p"),
+        )
+        # A longer coda is still shortened by its ending: the -t of gilt is the
+        # 3rd singular, leaving the root's l.
+        self.assertEqual(
+            extract_root_structure(None, "gilt", corpus="MHG", std_infl="Pres"),
+            ("i", "l"),
+        )
+
+
+class TestQuDigraph(unittest.TestCase):
+    def test_qu_is_resolved_before_the_vowel_regex_runs(self):
+        # quam is the past singular of komen. Reading the u of qu as nuclear
+        # gave the anchor "ua" and made the whole verb uninformative.
+        self.assertEqual(clean_form("quam"), "kwam")
+        self.assertEqual(
+            extract_root_structure(None, "quam", corpus="MHG", std_infl="PastSg"),
+            ("a", "m"),
+        )
+        self.assertEqual(
+            extract_root_structure(None, "qu\u00ebden", corpus="MHG", std_infl="Pres"),
+            ("e", "d"),
+        )
+
+    def test_uo_diphthong_is_untouched(self):
+        self.assertEqual(
+            extract_root_structure(None, "tuon", corpus="MHG", std_infl="Pres"),
+            ("uo", ""),
+        )
+        self.assertEqual(
+            extract_root_structure(None, "sluoc", corpus="MHG", std_infl="PastSg"),
+            ("uo", "c"),
+        )
 
 
 if __name__ == "__main__":
