@@ -9,22 +9,29 @@ This directory contains the statistical modeling, MCMC convergence diagnostics, 
 ```
 analysis/
 ├── README.md                                <- This documentation file
-├── data_for_analysis.csv                    <- Prepared modeling dataset (13,184 rows, 88 unique lemmas)
+├── data_for_analysis.csv                    <- Prepared vowel-only modeling dataset (16,931 rows, 106 unique lemmas)
 │
 ├── 🧠 Core Bayesian Modeling Pipeline
-│   ├── run_brms.R                           <- Fits 5 Bayesian GAMM models via brms / Stan
+│   ├── run_brms.R                           <- Fits 5 Bayesian GAMM models via brms / Stan (Option A: Vowel-Only)
 │   ├── analyze_models.Rmd                   <- LOO-CV model comparison, hypothesis testing, figure exports
 │   └── analyze_models.html                  <- Rendered R Markdown analysis report
+│
+├── 🔬 Consonant Channel & Mechanism Audits
+│   ├── consonant_analysis.py                <- Dedicated consonant channel analysis (GW vs Auslautverhärtung)
+│   ├── marking_type_summary.py              <- Fast reshape & marking type breakdown straight from coded data
+│   └── check_alternation_patterns.ipynb     <- Interactive visual inspection of alternation patterns
 │
 ├── 🩺 Post-Fit Diagnostics & Sampler Health
 │   └── mcmc_convergence.R                  <- Computes R-hat, Bulk/Tail ESS, divergences across fits/
 │
 ├── 🔍 Pre-Modeling Data & Target State Audits
 │   ├── attrition_diagnostics.py             <- Tracks lemma/token retention and sound change vs. leveling
-│   ├── target_sensitivity.py                <- Double robustness check for late ENHG target definitions
-│   └── check_alternation_patterns.ipynb     <- Interactive visual inspection of alternation patterns
+│   └── target_sensitivity.py                <- Double robustness check for late ENHG target definitions
 │
 └── 📊 reports/                              <- Audit summaries & diagnostic reports (.md, .csv)
+    ├── consonant_analysis_report.md         <- Comprehensive report on consonant channel leveling
+    ├── consonant_summary.csv                <- Mechanism summary (Morphological GW vs Orthographic)
+    ├── consonant_lemma_breakdown.csv        <- Per-lemma consonant leveling counts and rates
     ├── attrition_report.md                  <- Full funnel report on lemma/token attrition
     ├── attrition_summary.csv                <- Key attrition metrics table
     ├── target_sensitivity_report.md         <- Report on target state stability & label concordance
@@ -37,31 +44,40 @@ analysis/
 
 ## 📑 Detailed Script Catalog
 
-### 1. Core Bayesian Modeling
+### 1. Core Bayesian Modeling (Option A: Vowel-Only Model)
 
 * **`run_brms.R`**:
-  - **Purpose**: Prepares model variables and fits 5 Bayesian Generalized Additive Mixed Models (GAMMs) using `brms` and Stan.
+  - **Purpose**: Prepares model variables and fits 5 Bayesian Generalized Additive Mixed Models (GAMMs) using `brms` and Stan on the **vowel-only** dataset.
+  - **Factor Specification**:
+    - Consonant observations are filtered out to eliminate confounding from orthographic coda devoicing (*Auslautverhärtung*).
+    - `marking_type` is parameterized with `vowel_unipartite` explicitly as the reference factor level (baseline $\beta_0$), so the `vowel_bipartite` parameter measures the treatment contrast directly.
   - **Models Fitted**:
     1. `base_fit_marking_type` (Smooth Interaction GAMM, $k=4$, appendix baseline)
     2. `base_fit_marking_type_k10` (Smooth Interaction GAMM, $k=10$)
     3. `tensor_fit_marking_type_k10` (**Primary Model in Paper**, Tensor Product $t_2(\text{date}, \log(\text{freq}))$, $k=10$)
     4. `tensor_fit_marking_type_k4` (Tensor Product GAMM, $k=4$, sensitivity check on basis dimension)
     5. `tensor_fit_marking_type_k10_token` (Tensor Product with token frequency, sensitivity check on frequency definition)
-  - **Key Predictors**:
-    - `marking_type`: 3-level factor (`vowel_unipartite`, `vowel_bipartite`, `consonant_bipartite`) to avoid structural collinearity.
-    - Smooth temporal trends: $s(\text{date}, k)$ and $s(\text{date}, \text{by}=\text{marking\_type}, k)$.
-    - Alternation controls: `has_alt_pres`, `log_alt_pres_freq`, `has_alt_past`, `log_alt_past_freq`.
-    - Random effects: `(1 | variety) + s(date, by = variety, k)`, `(1 | lemma_std)`, `(1 | id)`.
-  - **LOO-CV**: Each fit stores Leave-One-Out Cross-Validation in `fit$criteria$loo`. This is the PSIS approximation from `loo()`. Read the Pareto-k diagnostics before you trust the model comparison.
+  - **CLI Flags**: Supports `--test` (fast test fit) and `--dry-run` (validates formulas and Stan code without sampling) alongside `--chains`, `--iter`, `--cores`, `--threads`, `--backend`, and `--overwrite`.
   - **Outputs**: Serialized `.rds` model objects in `fits/` and prepared modeling data in `analysis/data_for_analysis.csv`.
 
 * **`analyze_models.Rmd`**:
-  - **Purpose**: Comprehensive post-processing, Leave-One-Out Cross-Validation (PSIS-LOO), MCMC convergence tables, hypothesis testing (evidence ratios), and publication figure generation.
-  - **Outputs**: Publication-ready PDF figures in `figures/` and rendered HTML report `analyze_models.html`.
+  - **Purpose**: Comprehensive post-processing, Leave-One-Out Cross-Validation (PSIS-LOO), MCMC convergence tables, hypothesis testing (`marking_typevowel_bipartite < 0`), and publication figure generation.
+  - **Outputs**: Publication-ready PDF figures in `figures/` (`fixed_effects.pdf`, `bi-uni_diff.pdf`, `leveling_trajectories.pdf`, etc.) and rendered HTML report `analyze_models.html`.
 
 ---
 
-### 2. Sampler Convergence & Health Diagnostics
+### 2. Dedicated Consonant Analysis
+
+* **`consonant_analysis.py`**:
+  - **Purpose**: Standalone module and CLI tool investigating the elevated leveling rate in the consonant channel (~8.02% vs 0.86% for bipartite vowels).
+  - **Key Distinctions**:
+    - **True Morphological Leveling (*Grammatischer Wechsel* / Verner's Law)**: *r ~ s* in *verlieren*, *genesen*; *g ~ h/χ* in *ziehen*, *zîhen*.
+    - **Orthographic / Phonological Variation (*Auslautverhärtung*)**: *t ~ d* in *scheiden*, *lîden*, *snîden*; *w ~ h* in *lîhen*.
+  - **Outputs**: `reports/consonant_analysis_report.md`, `reports/consonant_summary.csv`, and `reports/consonant_lemma_breakdown.csv`.
+
+---
+
+### 3. Sampler Convergence & Health Diagnostics
 
 * **`mcmc_convergence.R`**:
   - **Purpose**: Audits Stan MCMC health across all 5 fitted models in `fits/` to guarantee reliable posterior exploration.
@@ -70,48 +86,43 @@ analysis/
 
 ---
 
-### 3. Pre-Modeling Data & Target State Audits (Double Robustness)
+### 4. Pre-Modeling Data & Target State Audits (Double Robustness)
 
 * **`attrition_diagnostics.py`**:
   - **Purpose**: Audits the longitudinal data pipeline from raw corpus texts (~1050–1650 CE) to the final GAMM dataset.
-  - **Tracks**:
-    - *Lemma Retention*: Traces lemmas through DSU unification, frequency filtering ($> 10$), pre-1200 start-state anchoring, and final GAMM inclusion.
-    - *Token Retention*: Quantifies tokens dropped due to unanchored baselines vs. retained past-tense tokens.
-    - *Sound Change vs. Leveling Filter*: Evaluates the regular sound-change filter (`data/vowel_changes.csv`), reporting how many transitions represent regular dialect sound changes (e.g. Upper German *uo* > *u*, Central German *î* > *ei*) rather than analogical leveling.
   - **Outputs**: `reports/attrition_report.md` and `reports/attrition_summary.csv`.
 
 * **`target_sensitivity.py`**:
-  - **Purpose**: Double robustness check verifying that defining each verb's teleological target state (the morphological endpoint by the end of ENHG) via `max(date)` per lemma is not biased by varying document survival dates.
-  - **Regimes Evaluated**:
-    1. *Baseline Target*: Modal vowel and coda at $\max(\text{date})$ per lemma.
-    2. *Variant 1 (Strict Late Subset)*: Only lemmas attested in texts dated $\ge 1500$.
-    3. *Variant 2 (Hybrid Fallback)*: Prioritizes texts dated $\ge 1500$ when available, falling back to $\max(\text{date})$ for lemmas whose records cease earlier.
-  - **Result**: Confirms **100.00% label concordance** across all past-tense tokens (zero classification flips).
+  - **Purpose**: Double robustness check verifying that defining each verb's teleological target state via `max(date)` per lemma is not biased by varying document survival dates.
   - **Outputs**: `reports/target_sensitivity_report.md` and `reports/target_sensitivity_summary.csv`.
-
-* **`check_alternation_patterns.ipynb`**:
-  - Interactive notebook for exploring distribution of alternation types and validating empirical patterns across verb classes.
 
 ---
 
 ## 🚀 Execution & Replication Workflow
 
-To reproduce the analysis and audit reports from scratch:
+To reproduce the analysis and audit reports:
 
 ```bash
-# 1. Run Pre-Modeling Diagnostics & Double Robustness Checks
+# 1. Run Consonant Channel Analysis
+python analysis/consonant_analysis.py
+
+# 2. Run Pre-Modeling Diagnostics & Double Robustness Checks
 python analysis/attrition_diagnostics.py
 python analysis/target_sensitivity.py
 
-# 2. Fit Bayesian GAMM Models (4 chains x 2 threads = 8 total CPU threads)
+# 3. Fit Bayesian GAMM Models (Option A: Vowel-Only)
+# Dry-run validation:
+Rscript analysis/run_brms.R --dry-run
+
+# Fast test run:
+Rscript analysis/run_brms.R --test
+
+# Full MCMC production run (4 chains x 2 threads = 8 total CPU threads):
 Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 4 --threads 2 --seed 97
 
-# (Optional) Force re-estimation of models that are already cached in fits/:
-# Rscript analysis/run_brms.R --overwrite
-
-# 3. Generate MCMC Convergence Summary Table
+# 4. Generate MCMC Convergence Summary Table
 Rscript analysis/mcmc_convergence.R
 
-# 4. Render LOO-CV Comparison, Hypothesis Tests & Publication Figures
+# 5. Render LOO-CV Comparison, Hypothesis Tests & Publication Figures
 Rscript -e "rmarkdown::render('analysis/analyze_models.Rmd')"
 ```

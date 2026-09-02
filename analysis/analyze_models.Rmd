@@ -156,15 +156,14 @@ tensor_fixed_draws <- fit_tensor %>%
   mutate(
     # Rename variables to human-readable format
     .variable = case_when(
-      .variable == "b_Intercept" ~ "Intercept",
-      .variable == "b_marking_typevowel_unipartite" ~ "Marking: Unipartite Vowel",
+      .variable == "b_Intercept" ~ "Intercept (Unipartite Vowel Base)",
       .variable == "b_marking_typevowel_bipartite" ~ "Marking: Bipartite Vowel",
       .variable == "b_log_freq" ~ "Lemma Frequency (Log)",
       .variable == "b_has_alt_presyes" ~ "Alt. Presence: Present/Past Sg",
       .variable == "b_has_alt_pastyes" ~ "Alt. Presence: Past Sg/Past Pl",
       .variable == "b_log_alt_pres_freq" ~ "Alt. Type Frequency: Present (Log)",
       .variable == "b_log_alt_past_freq" ~ "Alt. Type Frequency: Past (Log)",
-      .variable == "b_marking_typevowel_unipartite:std_inflPastSg" ~ "Unipartite Vowel × Past Singular Context",
+      .variable == "b_std_inflPastSg" ~ "Past Singular Context",
       .variable == "b_marking_typevowel_bipartite:std_inflPastSg" ~ "Bipartite Vowel × Past Singular Context",
       TRUE ~ .variable # Fallback for any unmapped variables
     )
@@ -172,20 +171,20 @@ tensor_fixed_draws <- fit_tensor %>%
 
 # Define the desired order of variables for the y-axis (top to bottom)
 var_order <- c(
-  "Unipartite Vowel × Past Singular Context",
   "Bipartite Vowel × Past Singular Context",
-  "Marking: Unipartite Vowel",
+  "Past Singular Context",
   "Marking: Bipartite Vowel",
   "Alt. Type Frequency: Past (Log)",
   "Alt. Type Frequency: Present (Log)",
   "Alt. Presence: Past Sg/Past Pl",
   "Alt. Presence: Present/Past Sg",
   "Lemma Frequency (Log)",
-  "Intercept"
+  "Intercept (Unipartite Vowel Base)"
 )
 
 # Apply factor levels to control plotting order
 tensor_fixed_draws <- tensor_fixed_draws %>%
+  filter(!is.na(.variable)) %>%
   mutate(.variable = factor(.variable, levels = var_order))
 
 # Generate the plot
@@ -217,14 +216,16 @@ ggsave(
 
 
 ```{r}
-hypothesis(fit_tensor, "marking_typevowel_bipartite - marking_typevowel_unipartite > 0")
+# Test Paul's Principle: bipartite vowel marking has lower log-odds of leveling relative to unipartite control baseline
+hyp_paul <- hypothesis(fit_tensor, "marking_typevowel_bipartite < 0")
+print(hyp_paul)
 ```
 
 ```{r plot-bipartite-contrast, fig.width=12, fig.height=8}
 # Plot the dynamic difference (contrast) between Bipartite and Unipartite marking
 p_diff <- plot_comparisons(
   fit_tensor,
-  variables = list(marking_type = c("vowel_bipartite", "vowel_unipartite")),
+  variables = list(marking_type = c("vowel_unipartite", "vowel_bipartite")),
   condition = c("date", "variety"),
   re_formula = NULL 
 ) +
@@ -312,13 +313,15 @@ conditional_effects(fit_tensor, effects = "date:marking_type")
 ```
 
 ```{r}
+eff_marking <- conditional_effects(fit_tensor, effects = "date:marking_type")
+
 # 1. Extract the data directly for more control
-plot_data <- as.data.frame(eff[[1]])
+plot_data <- as.data.frame(eff_marking[[1]])
 
 # 2. Pre-process names for cleaner plotting
 plot_data$marking_type <- factor(plot_data$marking_type, 
-                                 levels = c("consonant_bipartite", "vowel_bipartite", "vowel_unipartite"),
-                                 labels = c("Bipartite consonant", "Bipartite vowel", "Unipartite vowel"))
+                                 levels = c("vowel_bipartite", "vowel_unipartite"),
+                                 labels = c("Bipartite vowel", "Unipartite vowel"))
 
 # 3. Create the "Small Multiples" plot
 ggplot(plot_data, aes(x = date, y = estimate__, color = marking_type, fill = marking_type)) +

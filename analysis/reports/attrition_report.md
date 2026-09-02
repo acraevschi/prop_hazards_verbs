@@ -64,7 +64,7 @@ When studying historical language change across 600 years (Middle High German ~1
 | **Past Indicative Subset (Coded)** | 49,616 | 33.0% | Past Singular and Past Plural subparadigms |
 | **Tokens with Valid Baseline** | 48,273 | 97.3% | Successfully matched to pre-1200 dialect anchor |
 | **Tokens Dropped (Missing Baseline)** | 1,343 | 2.7% | Excluded due to no pre-1200 attestation in dialect |
-| **Final Analyzed Rows in GAMM** | 17,497 | 36.2% | Reshaped, non-redundant observations for brms modeling |
+| **Final Analyzed Rows in GAMM** | 16,931 | 35.1% | Reshaped, non-redundant observations for brms modeling |
 
 ---
 
@@ -73,25 +73,24 @@ When studying historical language change across 600 years (Middle High German ~1
 | Classification | Count | Description |
 | :--- | :---: | :--- |
 | **Transitions Filtered by Sound Change (Past)** | 7,425 | Past targets matching anchor via regular dialect sound change |
-| **Transitions Filtered by Sound Change (Pres)** | 1,545 | Present targets matching anchor via regular dialect sound change |
-| **Total Transitions Filtered as Sound Change** | 8,970 | Prevented from false positive leveling coding |
-| **Genuine Analogical Leveling (`has_levelled = 1`)** | 655 | Token matched target and broke from historical anchor |
-| **Preserved / Resisted Leveling (`has_levelled = 0`)** | 16,842 | Token maintained historical anchor state |
+| **Transitions Filtered by Sound Change (Pres)** | 1,555 | Present targets matching anchor via regular dialect sound change |
+| **Total Transitions Filtered as Sound Change** | 8,980 | Prevented from false positive leveling coding |
+| **Genuine Analogical Leveling (`has_levelled = 1`)** | 332 | Token matched target and broke from historical anchor |
+| **Preserved / Resisted Leveling (`has_levelled = 0`)** | 16,599 | Token maintained historical anchor state |
 
 ### Leveling Rate by Marking Type
 
 | Marking Type | Total Observations | Leveled (1) | Resisted (0) | Leveling Rate (%) |
 | :--- | :---: | :---: | :---: | :---: |
-| `consonant_bipartite` | 972 | 145 | 827 | 14.92% |
-| `vowel_bipartite` | 1,676 | 35 | 1,641 | 2.09% |
-| `vowel_unipartite` | 14,849 | 475 | 14,374 | 3.20% |
+| `vowel_bipartite` | 1,503 | 13 | 1,490 | 0.86% |
+| `vowel_unipartite` | 15,428 | 319 | 15,109 | 2.07% |
 
 ### Leveling Rate by Macro-Variety
 
 | Variety | Total Observations | Leveled (1) | Resisted (0) | Leveling Rate (%) |
 | :--- | :---: | :---: | :---: | :---: |
-| Central German | 6,163 | 198 | 5,965 | 3.21% |
-| Upper German | 11,334 | 457 | 10,877 | 4.03% |
+| Central German | 6,063 | 122 | 5,941 | 2.01% |
+| Upper German | 10,868 | 210 | 10,658 | 1.93% |
 
 ---
 *Report generated automatically by `analysis/attrition_diagnostics.py`.*

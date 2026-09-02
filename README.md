@@ -141,77 +141,75 @@ Three decisions in this stage are worth knowing before reading any number that c
 
 **Bipartiteness is decided per pair, with a shape test on each clause.** The past indicative singular is the one endingless cell, so its coda is word-final and every consonant comparison involving it is ambiguous between Verner's Law and Auslautverhärtung. The two have opposite shapes: Verner makes the past *plural* the odd cell out (`wesen ~ was ~ wâren`, s ~ s ~ r), final devoicing makes the past *singular* the odd cell out (`scheiden ~ schiet ~ schieden`, d ~ t ~ d). `step_2_establish_baseline` tests for this directly. There is deliberately no "any Grammatischer Wechsel anywhere and any Ablaut anywhere" clause: nearly every strong verb has ablaut somewhere, so that condition reduces to "any consonant difference at all" and hands the treatment variable to extraction noise.
 
-### Stage 5: Data & Target Diagnostics (Pre-Modeling Audits)
+### Stage 5: Consonant Analysis & Data Diagnostics
 
-Before fitting the statistical models, run the diagnostic tools to audit data retention, phonological sound-change filtering, and target state stability:
+1. **Consonant Channel Analysis** (`analysis/consonant_analysis.py`):
+   - **Purpose**: Dedicated empirical audit and statistical comparison of the consonant channel (`consonant_bipartite`).
+   - **Key Distinctions**: Separates true morphological leveling (*Grammatischer Wechsel* / Verner's Law in *ziehen*, *verlieren*, *genesen*, *zîhen*) from phonological / orthographic variation (*Auslautverhärtung* in *scheiden*, *lîden*, *snîden*, *mîden*, *lîhen*).
+   - **Command**:
+     ```bash
+     python analysis/consonant_analysis.py
+     ```
+   - **Outputs**: `analysis/reports/consonant_analysis_report.md`, `analysis/reports/consonant_summary.csv`, and `analysis/reports/consonant_lemma_breakdown.csv`.
 
-1. **Anchor & Target Attrition Diagnostics** (`analysis/attrition_diagnostics.py`):
+2. **Anchor & Target Attrition Diagnostics** (`analysis/attrition_diagnostics.py`):
    - **Purpose**: Audits the longitudinal data pipeline from raw texts (~1050–1650) to the final GAMM dataset.
-   - **What it tracks**:
-     - *Lemma Attrition*: Traces unique lemmas from raw ReM (MHG) and ReF (ENHG) through DSU unification, frequency filtering ($> 10$), pre-1200 MHG start-state anchoring, and final GAMM modeling.
-     - *Token Attrition*: Quantifies tokens dropped due to unanchored baselines versus analyzable past-tense tokens.
-     - *Sound Change vs. Leveling*: Audits the phonological filter (`vowel_changes.csv`), reporting how many transitions represent regular dialectal sound changes (e.g. UG *uo* > *u*, CG *î* > *ei*) rather than genuine analogical leveling.
    - **Command**:
      ```bash
      python analysis/attrition_diagnostics.py
      ```
    - **Outputs**: `analysis/reports/attrition_report.md` and `analysis/reports/attrition_summary.csv`.
 
-2. **Marking-Type Summary** (`analysis/marking_type_summary.py`):
-   - **Purpose**: Reports the `marking_type` counts, the bipartite leveling rate by period, and how the bipartite events are distributed over lemmas, without fitting anything. The same table is otherwise only available from `run_brms.R`, which takes about six hours.
-   - **Fidelity**: The reshape is a port of the "Reshaping & Predictor Construction" block of `run_brms.R`. It reproduces that script's `analysis/data_for_analysis.csv` exactly (13,184 observations, 532 leveling events on the committed baseline), so its row count can be read as the count the models will see.
+3. **Marking-Type Summary** (`analysis/marking_type_summary.py`):
+   - **Purpose**: Reports the `marking_type` counts, the bipartite leveling rate by period, and how the bipartite events are distributed over lemmas, without fitting anything.
    - **Command**:
      ```bash
      python analysis/marking_type_summary.py
      python analysis/marking_type_summary.py --sensitivity   # re-code with every VARIANT_POLICY choice flipped
      ```
 
-2. **Target State Sensitivity Analysis (Double Robustness Check)** (`analysis/target_sensitivity.py`):
+4. **Target State Sensitivity Analysis (Double Robustness Check)** (`analysis/target_sensitivity.py`):
    - **Purpose**: Verifies that the operationalization of each verb's teleological target state (its morphological endpoint by the end of ENHG) is not biased by varying document survival dates.
-   - **What it evaluates**:
-     - Compares the baseline target (`max(date)` per lemma) against two late-text regimes:
-       - *Variant 1 (Strict Late Subset)*: Only includes lemmas attested in texts dated $\ge 1500$.
-       - *Variant 2 (Hybrid Fallback)*: Prioritizes texts dated $\ge 1500$ when available, falling back to $\max(\text{date})$ for lemmas whose records cease earlier.
-     - Re-codes leveling outcomes across all past-tense tokens to measure concordance and label stability.
    - **Command**:
      ```bash
      python analysis/target_sensitivity.py
      ```
    - **Outputs**: `analysis/reports/target_sensitivity_report.md` and `analysis/reports/target_sensitivity_summary.csv`.
 
-### Stage 6: Bayesian Statistical Modeling & Evaluation
+### Stage 6: Bayesian Statistical Modeling & Evaluation (Option A: Vowel-Only GAMMs)
 
 Once the data is verified and coded:
 
 1. **Fit Bayesian GAMM Models** (`analysis/run_brms.R`):
-   - Fits the Bayesian Generalized Additive Mixed Models using `brms` and Stan (accounting for smooth temporal trajectories, interactive tensor products, random effects, and alternation controls).
+   - Fits 5 Bayesian Generalized Additive Mixed Models using `brms` and Stan on the **vowel-only** dataset with `vowel_unipartite` as the reference baseline ($\beta_0$).
    - Serializes and saves the fitted model objects (`.rds`) directly into the `fits/` folder, with LOO-CV attached.
-   - **Configurable Options** (defaults: `--chains 4 --iter 4000 --cores 4 --threads 2 --seed 97 --adapt_delta 0.99`):
-   ```bash
-   # Run with default settings (4 chains, 8 total CPU threads):
-   Rscript analysis/run_brms.R
-   ```
+   - **CLI Options**:
+     ```bash
+     # Dry-run validation (checks stancode & data without sampling):
+     Rscript analysis/run_brms.R --dry-run
 
-   ```bash
-   # Force re-fitting of models that are already cached in fits/:
-   Rscript analysis/run_brms.R --overwrite
-   ```
+     # Fast test run (2 chains, small iterations):
+     Rscript analysis/run_brms.R --test
 
-   > **Note on reproducibility**: `--seed` fixes the results because within-chain threading runs in static mode. If you change `--threads`, the partition of the log-likelihood sum changes, and the results move by a small amount.
+     # Full production run (4 chains, 8 total CPU threads):
+     Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 4 --threads 2 --seed 97
+     ```
 
 2. **MCMC Convergence Diagnostics** (`analysis/mcmc_convergence.R`):
    - Audits Stan sampler health across all 5 fitted models in `fits/` to verify reliable posterior exploration.
    - Evaluates: $\max(\hat{R})$, percentage of parameters with $\hat{R} \le 1.01$, minimum Bulk-ESS, minimum Tail-ESS, divergent transitions, and maximum treedepth hits.
-   ```bash
-   Rscript analysis/mcmc_convergence.R
-   ```
+   - **Command**:
+     ```bash
+     Rscript analysis/mcmc_convergence.R
+     ```
    - **Outputs**: `analysis/reports/mcmc_convergence_table.md` and `analysis/reports/mcmc_convergence.csv`.
 
 3. **LOO-CV Model Comparison, Hypothesis Tests & Publication Figures** (`analysis/analyze_models.Rmd`):
    - Computes Leave-One-Out Cross-Validation (PSIS-LOO), evaluates Paul's Principle via evidence ratios and dynamic contrasts, extracts marginal effects, and exports publication figures to `figures/`.
-   ```bash
-   Rscript -e "rmarkdown::render('analysis/analyze_models.Rmd')"
-   ```
+   - **Command**:
+     ```bash
+     Rscript -e "rmarkdown::render('analysis/analyze_models.Rmd')"
+     ```
 
 ---
 
