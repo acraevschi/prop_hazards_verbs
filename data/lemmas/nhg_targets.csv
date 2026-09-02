@@ -184,7 +184,7 @@ lemma_id,lemma,in_model,nhg_infinitive,nhg_preterite,nhg_preterite_variants,vari
 306,drëschen,no,dreschen,drosch,drosch,single,high,unimorph,unimorph-deu-d226d21,
 79,dünken,no,dünken,deuchte,deuchte,single,high,dwds,unimorph-deu-d226d21,
 82,eilen,no,eilen,eilte,eilte,single,high,dwds,unimorph-deu-d226d21,
-83,empfangen,no,empfangen,empfing,empfing,single,high,dwds,unimorph-deu-d226d21,
+83,empfangen,no,empfangen,empfing,empfing,single,high,dwds,unimorph-deu-d226d21,merged into lemma_id 19 (ent-vahen ~ fangen); the family target is fangen/fing
 84,empfehlen,no,empfehlen,empfahl,empfahl,single,high,dwds,unimorph-deu-d226d21,
 89,entsetzen,no,entsetzen,entsetzte,entsetzte,single,high,dwds,unimorph-deu-d226d21,
 93,erkennen,no,erkennen,erkannte,erkannte,single,high,dwds,unimorph-deu-d226d21,

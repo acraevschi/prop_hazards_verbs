@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Consonant Channel Analysis: Morphological Leveling vs. Orthographic Variation.
+Consonant Channel Analysis.
 
 Purpose
 -------
@@ -15,11 +15,11 @@ Key Questions Investigated
 1. Rate Discrepancy: Why is the observed leveling rate in the consonant channel
    (~8.02%) substantially higher than bipartite vowel leveling (~0.86%) and
    unipartite vowel leveling (~2.07%)?
-2. Orthographic vs. Morphological Leveling:
-   - True Morphological Grammatischer Wechsel (Verner's Law):
-     e.g., r ~ s (verlieren, genesen), g ~ h/χ (ziehen, zîhen).
-   - Phonological / Orthographic Alternation (Auslautverhärtung & Scribal Variation):
-     e.g., t ~ d (scheiden, lîden, snîden, mîden, sieden), w ~ h (lîhen).
+2. Which clause of the bipartite rule admitted each paradigm, read off the same
+   anchors that step_2_establish_baseline used. Devoicing-shaped paradigms
+   (scheiden d ~ t ~ d) are already excluded upstream, so that category is
+   expected to be empty here; it is reported as a tripwire on the rule, not as
+   a finding about the language.
 3. Concentration across Lemmas: Which verbs drive the consonant leveling counts,
    and how does rate vary when orthographic coda alternations are separated from
    genuine stem-consonant leveling?
@@ -56,22 +56,80 @@ REPORT_DEFAULT = "analysis/reports/consonant_analysis_report.md"
 SUMMARY_CSV_DEFAULT = "analysis/reports/consonant_summary.csv"
 LEMMA_CSV_DEFAULT = "analysis/reports/consonant_lemma_breakdown.csv"
 
-# Classification of consonant alternations: Morphological GW vs Orthographic/Coda
-MORPHOLOGICAL_GW_LEMMAS = {
-    17: "ziehen",     # g ~ h / χ (Class II)
-    119: "genesen",   # r ~ s (Class V)
-    216: "verlieren", # s ~ r (Class II)
-    219: "zîhen",     # g ~ h / χ (Class I)
-}
+# How a consonant lemma is classified.
+#
+# An earlier version of this module carried two hand-written lemma lists and
+# called every t ~ d alternation "Auslautverhärtung". That contradicted the
+# pipeline. step_2_establish_baseline admits a paradigm as bipartite only after
+# a shape test that already separates the two mechanisms: Verner leaves the past
+# plural as the odd cell (wesen s ~ s ~ r, quëden t ~ t ~ d), devoicing leaves
+# the past singular as the odd cell (scheiden d ~ t ~ d). snîden, lîden and
+# mîden are d ~ t ~ t - the past plural shares the t, so they are Class I
+# grammatischer Wechsel, which is exactly why they were admitted. Labelling them
+# orthographic here made this file disagree with the rule that built its own
+# input, and moved 193 observations and 20 events into a category that the
+# pipeline had already ruled out.
+#
+# So the category is now read off the same anchors the bipartite rule reads,
+# through the same clauses. Nothing is hard-coded, and the two cannot drift
+# apart. Note the consequence: after the shape test the devoicing category is
+# empty by construction, because scheiden and its kind never reach the consonant
+# channel at all. If a lemma ever does land in DEVOICING_SHAPE, that is a signal
+# that the upstream rule has changed, not a finding about the language.
+MECHANISM_VERNER_SG_PL = "Verner (past sg ~ past pl)"
+MECHANISM_VERNER_MEDIAL = "Verner (medial, pres ~ past)"
+MECHANISM_VERNER_PRES_PL = "Verner (pres ~ past pl)"
+MECHANISM_DEVOICING = "Devoicing shape (should not occur)"
+MECHANISM_UNCLASSIFIED = "Unclassified consonant alternation"
 
-ORTHOGRAPHIC_CODA_LEMMAS = {
-    8: "snîden",      # t ~ d (Class I, Auslautverhärtung)
-    95: "lîden",      # t ~ d (Class I, Auslautverhärtung)
-    145: "lîhen",     # w ~ h (Class I, scribal glide / hiatus)
-    149: "mîden",     # t ~ d (Class I, Auslautverhärtung)
-    173: "scheiden",  # t ~ d (Class VII, Auslautverhärtung)
-    193: "sièden",    # t ~ d (Class II, Auslautverhärtung)
-}
+MORPHOLOGICAL_CATEGORIES = (
+    MECHANISM_VERNER_SG_PL,
+    MECHANISM_VERNER_MEDIAL,
+    MECHANISM_VERNER_PRES_PL,
+)
+
+
+def _last_char(value):
+    if pd.isna(value):
+        return None
+    text = str(value).strip().lower()
+    return text[-1] if text else None
+
+
+def classify_consonant_lemma(anchor_row) -> str:
+    """
+    Name the clause of the bipartite rule that admitted this paradigm.
+
+    Reads the same anchor codas and the same diff_cons_* flags that
+    step_2_establish_baseline used, so the label cannot contradict the
+    classification that produced the consonant channel in the first place.
+    """
+    def flag(name):
+        value = anchor_row.get(name)
+        return str(value).strip().lower() == "true"
+
+    gw_pres_sg = flag("diff_cons_pres_pastsg")
+    gw_pres_pl = flag("diff_cons_pres_pastpl")
+    gw_sg_pl = flag("diff_cons_pastsg_pastpl")
+    ab_pres_pl = flag("diff_vowel_pres_pastpl")
+
+    cs = _last_char(anchor_row.get("anchor_coda_pastsg"))
+    cp = _last_char(anchor_row.get("anchor_coda_pastpl"))
+    cr = _last_char(anchor_row.get("anchor_coda_pres"))
+
+    # Devoicing shape: the past singular is the odd cell out. The upstream rule
+    # rejects this, so it is reported only as a tripwire.
+    if cr is not None and cs is not None and cp is not None:
+        if cr == cp and cs != cp and {cs, cp} == {"t", "d"}:
+            return MECHANISM_DEVOICING
+
+    if gw_sg_pl and not gw_pres_sg:
+        return MECHANISM_VERNER_SG_PL
+    if gw_pres_sg and not gw_sg_pl:
+        return MECHANISM_VERNER_MEDIAL
+    if ab_pres_pl and gw_pres_pl:
+        return MECHANISM_VERNER_PRES_PL
+    return MECHANISM_UNCLASSIFIED
 
 
 from analysis.marking_type_summary import reshape as reshape_data
@@ -113,7 +171,7 @@ def analyze_marking_rates(long_df: pd.DataFrame) -> pd.DataFrame:
 def analyze_consonant_lemmas(long_df: pd.DataFrame, raw_df: pd.DataFrame) -> pd.DataFrame:
     """
     Analyzes all lemmas participating in the consonant channel,
-    classifying them into Morphological Grammatischer Wechsel vs Orthographic/Auslautverhärtung.
+    labelling each by the clause of the bipartite rule that admitted it.
     """
     cons_sub = long_df[long_df["marking_type"] == "consonant_bipartite"].copy()
 
@@ -125,6 +183,15 @@ def analyze_consonant_lemmas(long_df: pd.DataFrame, raw_df: pd.DataFrame) -> pd.
         all_alts = " / ".join(filter(None, [", ".join(pres_alts), ", ".join(past_alts)]))
         alt_map[lid] = all_alts if all_alts else "unspecified"
 
+    # One anchor row per lemma carries the paradigm the bipartite rule saw.
+    anchors = raw_df.drop_duplicates(subset=["lemma_id", "variety"])
+    cat_map = {}
+    for lid, grp in anchors[anchors["lemma_id"].isin(cons_sub["lemma_id"].unique())].groupby("lemma_id"):
+        labels = [classify_consonant_lemma(r) for _, r in grp.iterrows()]
+        morphological = [x for x in labels if x in MORPHOLOGICAL_CATEGORIES]
+        # A lemma attested in both varieties can resolve in only one of them.
+        cat_map[lid] = morphological[0] if morphological else (labels[0] if labels else MECHANISM_UNCLASSIFIED)
+
     rows = []
     for lid, grp in cons_sub.groupby("lemma_id"):
         lemma_name = grp["lemma_clean"].iloc[0] if "lemma_clean" in grp.columns and pd.notna(grp["lemma_clean"].iloc[0]) else grp["lemma"].iloc[0]
@@ -132,15 +199,8 @@ def analyze_consonant_lemmas(long_df: pd.DataFrame, raw_df: pd.DataFrame) -> pd.
         leveled = int(grp["has_levelled"].sum())
         rate = 100.0 * leveled / obs if obs > 0 else 0.0
 
-        if lid in MORPHOLOGICAL_GW_LEMMAS:
-            mech = "Morphological (Grammatischer Wechsel / Verner's Law)"
-            cat = "Morphological GW"
-        elif lid in ORTHOGRAPHIC_CODA_LEMMAS:
-            mech = "Orthographic / Phonological (Auslautverhärtung / Spelling)"
-            cat = "Orthographic / Devoicing"
-        else:
-            mech = "Unclassified Consonant Alternation"
-            cat = "Other"
+        cat = cat_map.get(lid, MECHANISM_UNCLASSIFIED)
+        mech = cat
 
         rows.append({
             "lemma_id": lid,
@@ -163,7 +223,7 @@ def analyze_consonant_lemmas(long_df: pd.DataFrame, raw_df: pd.DataFrame) -> pd.
 
 
 def compute_mechanism_summary(lemma_df: pd.DataFrame) -> pd.DataFrame:
-    """Summarizes leveling by mechanism (Morphological vs Orthographic)."""
+    """Summarizes leveling by the admitting clause of the bipartite rule."""
     mech_summary = lemma_df.groupby("category").agg(
         num_lemmas=("lemma_id", "count"),
         observations=("observations", "sum"),
@@ -181,15 +241,19 @@ def compute_statistical_contrasts(long_df: pd.DataFrame, lemma_df: pd.DataFrame)
     Computes 2x2 contingency tables and Odds Ratios comparing:
     1. Consonant Bipartite vs Vowel Unipartite
     2. Consonant Bipartite vs Vowel Bipartite
-    3. Morphological Consonant vs Vowel Bipartite
-    4. Orthographic Consonant vs Vowel Bipartite
+    3. Verner-admitted Consonant vs Vowel Bipartite
+    4. Devoicing-shaped Consonant vs Vowel Bipartite (expected empty)
     """
     v_uni = long_df[long_df["marking_type"] == "vowel_unipartite"]
     v_bi = long_df[long_df["marking_type"] == "vowel_bipartite"]
     c_bi = long_df[long_df["marking_type"] == "consonant_bipartite"]
 
-    morph_lids = set(MORPHOLOGICAL_GW_LEMMAS.keys())
-    ortho_lids = set(ORTHOGRAPHIC_CODA_LEMMAS.keys())
+    morph_lids = set(
+        lemma_df.loc[lemma_df["category"].isin(MORPHOLOGICAL_CATEGORIES), "lemma_id"]
+    )
+    ortho_lids = set(
+        lemma_df.loc[lemma_df["category"] == MECHANISM_DEVOICING, "lemma_id"]
+    )
 
     c_morph = c_bi[c_bi["lemma_id"].isin(morph_lids)]
     c_ortho = c_bi[c_bi["lemma_id"].isin(ortho_lids)]
@@ -198,8 +262,8 @@ def compute_statistical_contrasts(long_df: pd.DataFrame, lemma_df: pd.DataFrame)
         "Vowel Unipartite": (len(v_uni) - int(v_uni["has_levelled"].sum()), int(v_uni["has_levelled"].sum())),
         "Vowel Bipartite": (len(v_bi) - int(v_bi["has_levelled"].sum()), int(v_bi["has_levelled"].sum())),
         "Consonant Bipartite (All)": (len(c_bi) - int(c_bi["has_levelled"].sum()), int(c_bi["has_levelled"].sum())),
-        "Consonant Morphological (Verner's Law)": (len(c_morph) - int(c_morph["has_levelled"].sum()), int(c_morph["has_levelled"].sum())),
-        "Consonant Orthographic (Auslautverhärtung)": (len(c_ortho) - int(c_ortho["has_levelled"].sum()), int(c_ortho["has_levelled"].sum())),
+        "Consonant Verner-admitted": (len(c_morph) - int(c_morph["has_levelled"].sum()), int(c_morph["has_levelled"].sum())),
+        "Consonant Devoicing-shaped": (len(c_ortho) - int(c_ortho["has_levelled"].sum()), int(c_ortho["has_levelled"].sum())),
     }
 
     contrasts = {}
@@ -211,6 +275,20 @@ def compute_statistical_contrasts(long_df: pd.DataFrame, lemma_df: pd.DataFrame)
         # Odds ratio = (n1_1 / n0_1) / (n1_2 / n0_2)
         odds1 = n1_1 / n0_1 if n0_1 > 0 else float('inf')
         odds2 = n1_2 / n0_2 if n0_2 > 0 else float('inf')
+        # An empty group is a legitimate outcome, not an error: after the shape
+        # test the devoicing category has no members, which is the point.
+        if (n0_1 + n1_1) == 0 or (n0_2 + n1_2) == 0:
+            return {
+                "group1": g1_name,
+                "group2": g2_name,
+                "g1_rate_pct": None,
+                "g2_rate_pct": None,
+                "odds_ratio": None,
+                "ci_95": (None, None),
+                "p_value": None,
+                "note": "no observations in one of the two groups",
+            }
+
         odds_ratio = odds1 / odds2 if odds2 > 0 else float('inf')
         
         # 95% CI for log OR
@@ -235,8 +313,8 @@ def compute_statistical_contrasts(long_df: pd.DataFrame, lemma_df: pd.DataFrame)
 
     contrasts["Cons_All_vs_Vowel_Uni"] = calc_or("Consonant Bipartite (All)", "Vowel Unipartite")
     contrasts["Cons_All_vs_Vowel_Bi"] = calc_or("Consonant Bipartite (All)", "Vowel Bipartite")
-    contrasts["Cons_Morph_vs_Vowel_Bi"] = calc_or("Consonant Morphological (Verner's Law)", "Vowel Bipartite")
-    contrasts["Cons_Ortho_vs_Vowel_Bi"] = calc_or("Consonant Orthographic (Auslautverhärtung)", "Vowel Bipartite")
+    contrasts["Cons_Morph_vs_Vowel_Bi"] = calc_or("Consonant Verner-admitted", "Vowel Bipartite")
+    contrasts["Cons_Ortho_vs_Vowel_Bi"] = calc_or("Consonant Devoicing-shaped", "Vowel Bipartite")
 
     return contrasts
 
@@ -252,7 +330,7 @@ def generate_markdown_report(
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     lines = []
-    lines.append("# Consonant Channel Analysis: Morphological Leveling vs. Orthographic Variation")
+    lines.append("# Consonant Channel Analysis")
     lines.append("")
     lines.append("## Executive Summary")
     lines.append("")
@@ -260,7 +338,7 @@ def generate_markdown_report(
         "This report provides a dedicated empirical audit of the consonant channel (`consonant_bipartite`) "
         "in Middle High German (MHG) and Early New High German (ENHG) strong verbs. While the primary "
         "Bayesian GAMM models focus on the vocalic channel (`vowel_unipartite` vs `vowel_bipartite`), "
-        "the consonant channel exhibits distinct historical, phonological, and orthographic dynamics."
+        "the consonant channel behaves differently and is reported separately here."
     )
     lines.append("")
     lines.append("### Key Findings:")
@@ -270,22 +348,30 @@ def generate_markdown_report(
         f"which is substantially higher than bipartite vowel leveling (**{rates_df.loc[rates_df['marking_type']=='vowel_bipartite', 'rate_pct'].values[0]:.2f}%**, OR = {contrasts['Cons_All_vs_Vowel_Bi']['odds_ratio']}) "
         f"and unipartite vowel leveling (**{rates_df.loc[rates_df['marking_type']=='vowel_unipartite', 'rate_pct'].values[0]:.2f}%**, OR = {contrasts['Cons_All_vs_Vowel_Uni']['odds_ratio']})."
     )
-    lines.append(
-        "2. **Dual Mechanism Breakdown**: Consonant alternations conflate two fundamentally different historical processes:\n"
-        "   - **True Morphological Leveling (*Grammatischer Wechsel* / Verner's Law)**: Genuine stem alternations (*s ~ r* in *verlieren*, *genesen*; *g ~ h/χ* in *ziehen*, *zîhen*). Leveling rate: **"
-        f"{mech_df.loc[mech_df['category']=='Morphological GW', 'rate_pct'].values[0]:.2f}%**.\n"
-        "   - **Orthographic / Phonological Variation (*Auslautverhärtung*)**: Coda alternations (*t ~ d* in *scheiden*, *lîden*, *snîden*; *w ~ h* in *lîhen*), driven by final devoicing and scribal standardizations. Leveling rate: **"
-        f"{mech_df.loc[mech_df['category']=='Orthographic / Devoicing', 'rate_pct'].values[0]:.2f}%**."
-    )
-    top_morph = lemma_df[lemma_df["category"] == "Morphological GW"].sort_values("leveled", ascending=False)
-    top_ortho = lemma_df[lemma_df["category"] == "Orthographic / Devoicing"].sort_values("leveled", ascending=False)
-    top_morph_str = f"*{top_morph.iloc[0]['lemma']}* (lemma {top_morph.iloc[0]['lemma_id']}, {top_morph.iloc[0]['share_of_cons_events']:.1f}%)" if len(top_morph) > 0 else "None"
-    top_ortho_str = f"*{top_ortho.iloc[0]['lemma']}* (lemma {top_ortho.iloc[0]['lemma_id']}, {top_ortho.iloc[0]['share_of_cons_events']:.1f}%)" if len(top_ortho) > 0 else "None"
+    morph_mask = mech_df["category"].isin(MORPHOLOGICAL_CATEGORIES)
+    devoicing_mask = mech_df["category"] == MECHANISM_DEVOICING
+    morph_obs = int(mech_df.loc[morph_mask, "observations"].sum())
+    morph_lev = int(mech_df.loc[morph_mask, "leveled"].sum())
+    morph_rate = 100.0 * morph_lev / morph_obs if morph_obs else 0.0
+    devoicing_obs = int(mech_df.loc[devoicing_mask, "observations"].sum())
 
     lines.append(
-        f"3. **High Concentration**: The largest morphological contributor is {top_morph_str}, "
-        f"while the largest orthographic contributor is {top_ortho_str}."
+        "2. **All of it is Verner, by construction**: every paradigm in this channel was admitted by "
+        "`step_2_establish_baseline` only after a shape test that separates grammatischer Wechsel from "
+        "Auslautverhärtung. Verner leaves the past plural as the odd cell (*wesen* s ~ s ~ r, *quëden* "
+        "t ~ t ~ d); devoicing leaves the past singular as the odd cell (*scheiden* d ~ t ~ d). The Class I "
+        "verbs *snîden*, *lîden* and *mîden* are d ~ t ~ **t** - the plural shares the t - so their t ~ d "
+        f"is grammatischer Wechsel, not a spelling effect. Verner-admitted: **{morph_rate:.2f}%** "
+        f"({morph_lev} / {morph_obs:,}). Devoicing-shaped: **{devoicing_obs} observations**, as expected - "
+        "a non-zero count here would mean the upstream rule had changed."
     )
+    top_morph = lemma_df[lemma_df["category"].isin(MORPHOLOGICAL_CATEGORIES)].sort_values("leveled", ascending=False)
+    top_morph_str = (
+        f"*{top_morph.iloc[0]['lemma']}* (lemma {top_morph.iloc[0]['lemma_id']}, "
+        f"{top_morph.iloc[0]['share_of_cons_events']:.1f}% of consonant events)"
+        if len(top_morph) > 0 else "None"
+    )
+    lines.append(f"3. **High Concentration**: The largest contributor is {top_morph_str}.")
     lines.append("")
 
     lines.append("## 1. Overall Marking Type Leveling Rates")
@@ -296,7 +382,7 @@ def generate_markdown_report(
         lines.append(f"| `{r['marking_type']}` | {int(r['observations']):,} | {int(r['leveled']):,} | {r['rate_pct']:.2f}% |")
     lines.append("")
 
-    lines.append("## 2. Morphological vs. Orthographic Mechanism Breakdown")
+    lines.append("## 2. Breakdown by the Admitting Clause of the Bipartite Rule")
     lines.append("")
     lines.append("| Alternation Category | Lemmas | Observations | Leveled | Leveling Rate (%) | Share of Consonant Events |")
     lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
@@ -317,6 +403,10 @@ def generate_markdown_report(
     lines.append("| Comparison | Group 1 Rate | Group 2 Rate | Odds Ratio | 95% Confidence Interval | p-value (Fisher) |")
     lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
     for name, c in contrasts.items():
+        if c.get("note"):
+            # An empty group is the expected result for the devoicing contrast.
+            lines.append(f"| {c['group1']} vs. {c['group2']} | - | - | - | - | {c['note']} |")
+            continue
         p_str = f"{c['p_value']:.2e}" if c['p_value'] is not None else "N/A"
         lines.append(f"| {c['group1']} vs. {c['group2']} | {c['g1_rate_pct']:.2f}% | {c['g2_rate_pct']:.2f}% | {c['odds_ratio']:.2f} | [{c['ci_95'][0]}, {c['ci_95'][1]}] | {p_str} |")
     lines.append("")
@@ -360,7 +450,7 @@ def main():
     print("\n--- Marking Type Leveling Rates ---")
     print(rates_df.to_string(index=False))
 
-    print("\n--- Mechanism Summary (Morphological vs Orthographic) ---")
+    print("\n--- Mechanism Summary (by admitting clause) ---")
     print(mech_df.to_string(index=False))
 
     print("\n--- Consonant Lemmas Breakdown ---")

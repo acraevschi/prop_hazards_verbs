@@ -213,6 +213,87 @@ Once the data is verified and coded:
 
 ---
 
+## ⚠️ Known Limitations of the Coding Pipeline
+
+Material for the methods appendix. Each item is a place where the pipeline
+knowingly abstains or knowingly mis-parses, with the size of the effect measured
+against the current `data/coded_output.csv`.
+
+### 1. `u` spelling /v/ before a vowel
+
+`clean_form` does not decide whether an orthographic `u` is a vowel or the
+allograph of `v`. ReF writes *gevallen* as `geuallen` and *bevolhen* as
+`beuolhen`, so the prefix goes unstripped and the prefix vowel joins the root
+nucleus: `geuallen` parses as `('eua', 'l')` where the root is `('a', 'l')`.
+
+Disambiguating this needs the surrounding graphotactics and, in the hard cases,
+the lemma, and no rule we tried separated *geuallen* (v) from *geuben* (u)
+without new errors elsewhere. It is left in place.
+
+**Size**: 40 of 49,616 coded rows carry a nucleus of three or more characters,
+which is phonotactically impossible for a High German root and therefore marks
+every instance of this failure. 134 tokens show a prefix followed by a `u` that
+spells /v/. Both are confined to ReF. Such rows compare equal to neither anchor
+nor target, so they are coded `NA` rather than as leveling events.
+
+### 2. The bipartite shape test abstains when its deciding cell is missing
+
+`step_2_establish_baseline` separates grammatischer Wechsel from
+Auslautverhärtung by paradigm shape: Verner leaves the past plural as the odd
+cell, devoicing leaves the past singular as the odd cell. When the cell that
+decides the shape has no pre-1200 anchor, the test cannot run, and the paradigm
+is left unipartite rather than admitted on an untested assumption.
+
+**Size**: this costs *sièden* and *nîden* Central German, both of which lack a
+past plural anchor. *sieden* is a genuine Class II Verner verb, so this is a
+false negative — but it contributed 1 observation, and the alternative is to
+re-admit *scheiden* d ~ t ~ ? on the same evidence.
+
+The dentals are the only voicing pair the test has to guard, because
+`are_cons_equivalent` already treats p ~ b and k ~ g as spelling variants;
+`d ~ t` is held apart deliberately, being the Class I alternation. An `s ~ r` or
+`h ~ g` contrast is not something final devoicing can produce, so it needs no
+present-tense witness. That is what lets *wesen* in on *was ~ wâren* alone.
+
+### 3. Bipartite status is resolved per lemma and variety
+
+A verb attested in one variety but not the other can resolve in one and abstain
+in the other, so the treatment variable is not always constant within a lemma.
+
+**Size**: 4 lemma_ids disagree across varieties (*genesen*, *slahen*, *lîhen*,
+*mîden*), in every case because one variety is missing an anchor rather than for
+any linguistic reason. `run_brms.R` groups on `lemma_id`, so those four verbs
+contribute rows at both levels of `marking_type`.
+
+### 4. Verbs first attested in ReF have no start state
+
+The baseline requires a pre-1200 MHG anchor, so a lemma_id that appears only in
+ReF is dropped whatever its modern reflex.
+
+**Size**: 63 lemma_ids, 8,449 tokens. Most are weak verbs irrelevant to the
+study, but the class also collects strong verbs whose ReF spelling was linked to
+its own lemma_id rather than to the MHG family. One such case, *empfangen*
+(202 tokens), was merged into lemma_id 19 (*ent-vâhen* ~ *fangen*); the link is
+recorded in `data/lemmas/etymology_matches_manual.csv` and applied in
+`data/lemmas/lemma_id.csv`. The remaining 63 have not been audited individually.
+
+### 5. Curated modern targets reach lemmas that ReF never attests
+
+`step_3_establish_targets` walks ReF groups to find a corpus endpoint. That gate
+belongs on the corpus fallback only: the endpoint of *kiesen* is *kor* whether or
+not ReF happens to write the verb down. Curated targets are therefore carried to
+lemma-variety groups the ReF loop never reaches, and those rows report
+`target_pres_n = 0` / `target_past_n = 0` to mark that no ReF token stands behind
+them. Verbs with no modern reflex at all (*dwahen*, *quëden*, *nîden*, *wësen*)
+have no curated form to carry and remain uncoded, which is correct: a verb that
+died never leveled. **This means the bipartite sample is conditioned on survival
+into Modern German.**
+
+**Size**: 64 lemma-variety groups now receive a carried target, including
+*kiesen* (a Verner verb, 406 MHG tokens) and *heizen* (2,817 tokens).
+
+---
+
 ## 🧪 Running Unit Tests
 
 To run the unit tests verifying root extraction phonotactic guards, Ablaut classes (I-VII), Grammatischer Wechsel pairs, and equivalence functions:

@@ -1,53 +1,51 @@
-# Consonant Channel Analysis: Morphological Leveling vs. Orthographic Variation
+# Consonant Channel Analysis
 
 ## Executive Summary
 
-This report provides a dedicated empirical audit of the consonant channel (`consonant_bipartite`) in Middle High German (MHG) and Early New High German (ENHG) strong verbs. While the primary Bayesian GAMM models focus on the vocalic channel (`vowel_unipartite` vs `vowel_bipartite`), the consonant channel exhibits distinct historical, phonological, and orthographic dynamics.
+This report provides a dedicated empirical audit of the consonant channel (`consonant_bipartite`) in Middle High German (MHG) and Early New High German (ENHG) strong verbs. While the primary Bayesian GAMM models focus on the vocalic channel (`vowel_unipartite` vs `vowel_bipartite`), the consonant channel behaves differently and is reported separately here.
 
 ### Key Findings:
-1. **Elevated Raw Leveling Rate**: The consonant channel exhibits an overall leveling rate of **8.02%** (65 / 810 observations), which is substantially higher than bipartite vowel leveling (**0.86%**, OR = 10.0) and unipartite vowel leveling (**2.07%**, OR = 4.13).
-2. **Dual Mechanism Breakdown**: Consonant alternations conflate two fundamentally different historical processes:
-   - **True Morphological Leveling (*Grammatischer Wechsel* / Verner's Law)**: Genuine stem alternations (*s ~ r* in *verlieren*, *genesen*; *g ~ h/χ* in *ziehen*, *zîhen*). Leveling rate: **7.29%**.
-   - **Orthographic / Phonological Variation (*Auslautverhärtung*)**: Coda alternations (*t ~ d* in *scheiden*, *lîden*, *snîden*; *w ~ h* in *lîhen*), driven by final devoicing and scribal standardizations. Leveling rate: **10.36%**.
-3. **High Concentration**: The largest morphological contributor is *ziehen* (lemma 17, 52.3%), while the largest orthographic contributor is *lîden* (lemma 95, 15.4%).
+1. **Elevated Raw Leveling Rate**: The consonant channel exhibits an overall leveling rate of **7.35%** (65 / 884 observations), which is substantially higher than bipartite vowel leveling (**0.80%**, OR = 9.82) and unipartite vowel leveling (**2.04%**, OR = 3.8).
+2. **All of it is Verner, by construction**: every paradigm in this channel was admitted by `step_2_establish_baseline` only after a shape test that separates grammatischer Wechsel from Auslautverhärtung. Verner leaves the past plural as the odd cell (*wesen* s ~ s ~ r, *quëden* t ~ t ~ d); devoicing leaves the past singular as the odd cell (*scheiden* d ~ t ~ d). The Class I verbs *snîden*, *lîden* and *mîden* are d ~ t ~ **t** - the plural shares the t - so their t ~ d is grammatischer Wechsel, not a spelling effect. Verner-admitted: **7.35%** (65 / 884). Devoicing-shaped: **0 observations**, as expected - a non-zero count here would mean the upstream rule had changed.
+3. **High Concentration**: The largest contributor is *ziehen* (lemma 17, 52.3% of consonant events).
 
 ## 1. Overall Marking Type Leveling Rates
 
 | Marking Type | Observations | Leveling Events | Leveling Rate (%) |
 | :--- | :---: | :---: | :---: |
-| `vowel_unipartite` | 15,428 | 319 | 2.07% |
-| `vowel_bipartite` | 1,503 | 13 | 0.86% |
-| `consonant_bipartite` | 810 | 65 | 8.02% |
+| `vowel_unipartite` | 15,845 | 324 | 2.04% |
+| `vowel_bipartite` | 1,622 | 13 | 0.80% |
+| `consonant_bipartite` | 884 | 65 | 7.35% |
 
-## 2. Morphological vs. Orthographic Mechanism Breakdown
+## 2. Breakdown by the Admitting Clause of the Bipartite Rule
 
 | Alternation Category | Lemmas | Observations | Leveled | Leveling Rate (%) | Share of Consonant Events |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Morphological GW** | 4 | 617 | 45 | 7.29% | 69.2% |
-| **Orthographic / Devoicing** | 5 | 193 | 20 | 10.36% | 30.8% |
+| **Verner (medial, pres ~ past)** | 4 | 192 | 20 | 10.42% | 30.8% |
+| **Verner (past sg ~ past pl)** | 5 | 692 | 45 | 6.50% | 69.2% |
 
 ## 3. Per-Lemma Consonant Breakdown
 
 | Lemma ID | Lemma | Alternation Pattern | Category | Obs | Leveled | Rate (%) | Share (%) |
 | :---: | :--- | :--- | :--- | :---: | :---: | :---: | :---: |
-| 17 | *ziehen* | `g ~ h / χ ~ g, g ~ χ` | Morphological GW | 543 | 34 | 6.26% | 52.3% |
-| 95 | *lîden* | `t ~ d` | Orthographic / Devoicing | 115 | 10 | 8.70% | 15.4% |
-| 145 | *lîhen* | `w ~ h` | Orthographic / Devoicing | 11 | 9 | 81.82% | 13.8% |
-| 216 | *verlieren* | `r ~ s / r ~ s, s ~ r` | Morphological GW | 52 | 6 | 11.54% | 9.2% |
-| 119 | *genesen* | `r ~ s / r ~ s, s ~ r` | Morphological GW | 12 | 4 | 33.33% | 6.2% |
-| 8 | *snîden* | `t ~ d` | Orthographic / Devoicing | 45 | 1 | 2.22% | 1.5% |
-| 219 | *zîhen* | `g ~ h / χ ~ g, g ~ χ, h ~ g, g ~ h` | Morphological GW | 10 | 1 | 10.00% | 1.5% |
-| 149 | *mîden* | `t ~ d` | Orthographic / Devoicing | 21 | 0 | 0.00% | 0.0% |
-| 193 | *sièden* | `t ~ d` | Orthographic / Devoicing | 1 | 0 | 0.00% | 0.0% |
+| 17 | *ziehen* | `g ~ h / g ~ χ, χ ~ g` | Verner (past sg ~ past pl) | 543 | 34 | 6.26% | 52.3% |
+| 95 | *lîden* | `t ~ d` | Verner (medial, pres ~ past) | 115 | 10 | 8.70% | 15.4% |
+| 145 | *lîhen* | `w ~ h` | Verner (medial, pres ~ past) | 11 | 9 | 81.82% | 13.8% |
+| 216 | *verlieren* | `r ~ s / s ~ r, r ~ s` | Verner (past sg ~ past pl) | 52 | 6 | 11.54% | 9.2% |
+| 119 | *genesen* | `r ~ s / s ~ r, r ~ s` | Verner (past sg ~ past pl) | 12 | 4 | 33.33% | 6.2% |
+| 8 | *snîden* | `t ~ d` | Verner (medial, pres ~ past) | 45 | 1 | 2.22% | 1.5% |
+| 219 | *zîhen* | `g ~ h / g ~ χ, g ~ h, χ ~ g, h ~ g` | Verner (past sg ~ past pl) | 10 | 1 | 10.00% | 1.5% |
+| 330 | *kièsen* | `r ~ s / s ~ r, r ~ s` | Verner (past sg ~ past pl) | 75 | 0 | 0.00% | 0.0% |
+| 149 | *mîden* | `t ~ d` | Verner (medial, pres ~ past) | 21 | 0 | 0.00% | 0.0% |
 
 ## 4. Statistical Contrast Analysis
 
 | Comparison | Group 1 Rate | Group 2 Rate | Odds Ratio | 95% Confidence Interval | p-value (Fisher) |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| Consonant Bipartite (All) vs. Vowel Unipartite | 8.02% | 2.07% | 4.13 | [3.13, 5.45] | 2.30e-18 |
-| Consonant Bipartite (All) vs. Vowel Bipartite | 8.02% | 0.86% | 10.00 | [5.48, 18.26] | 5.44e-19 |
-| Consonant Morphological (Verner's Law) vs. Vowel Bipartite | 7.29% | 0.86% | 9.02 | [4.83, 16.84] | 1.23e-14 |
-| Consonant Orthographic (Auslautverhärtung) vs. Vowel Bipartite | 10.36% | 0.86% | 13.25 | [6.48, 27.11] | 7.97e-12 |
+| Consonant Bipartite (All) vs. Vowel Unipartite | 7.35% | 2.04% | 3.80 | [2.89, 5.01] | 8.60e-17 |
+| Consonant Bipartite (All) vs. Vowel Bipartite | 7.35% | 0.80% | 9.82 | [5.38, 17.92] | 9.45e-19 |
+| Consonant Verner-admitted vs. Vowel Bipartite | 7.35% | 0.80% | 9.82 | [5.38, 17.92] | 9.45e-19 |
+| Consonant Devoicing-shaped vs. Vowel Bipartite | - | - | - | - | no observations in one of the two groups |
 
 ## 5. Methodological & Theoretical Implications
 

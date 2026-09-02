@@ -13,8 +13,11 @@ from analysis.consonant_analysis import (
     analyze_consonant_lemmas,
     compute_mechanism_summary,
     compute_statistical_contrasts,
-    MORPHOLOGICAL_GW_LEMMAS,
-    ORTHOGRAPHIC_CODA_LEMMAS,
+    classify_consonant_lemma,
+    MORPHOLOGICAL_CATEGORIES,
+    MECHANISM_DEVOICING,
+    MECHANISM_VERNER_SG_PL,
+    MECHANISM_VERNER_MEDIAL,
 )
 
 
@@ -67,14 +70,40 @@ class TestConsonantAnalysis(unittest.TestCase):
 
     def test_mechanism_classification(self):
         categories = set(self.mech_df["category"].unique())
-        self.assertIn("Morphological GW", categories)
-        self.assertIn("Orthographic / Devoicing", categories)
+        # Every paradigm in the consonant channel passed the bipartite shape
+        # test, so every category present must be one of the Verner clauses.
+        self.assertTrue(categories)
+        self.assertTrue(categories.issubset(set(MORPHOLOGICAL_CATEGORIES)))
+        # The devoicing shape is excluded upstream; a member here would mean the
+        # bipartite rule had changed without this report being updated.
+        self.assertNotIn(MECHANISM_DEVOICING, categories)
 
-        # Check that top verbs are correctly categorized
-        self.assertIn(17, MORPHOLOGICAL_GW_LEMMAS) # ziehen
-        self.assertIn(216, MORPHOLOGICAL_GW_LEMMAS) # verlieren
-        self.assertIn(95, ORTHOGRAPHIC_CODA_LEMMAS) # lîden
-        self.assertIn(145, ORTHOGRAPHIC_CODA_LEMMAS) # lîhen
+        # The category is read off the paradigm, through the same clauses the
+        # bipartite rule uses, so it cannot disagree with what admitted the lemma.
+        def row(pres, sg, pl, gw_ps, gw_sp, gw_ppl=False, ab_ppl=False):
+            return {
+                "anchor_coda_pres": pres,
+                "anchor_coda_pastsg": sg,
+                "anchor_coda_pastpl": pl,
+                "diff_cons_pres_pastsg": str(gw_ps),
+                "diff_cons_pastsg_pastpl": str(gw_sp),
+                "diff_cons_pres_pastpl": str(gw_ppl),
+                "diff_vowel_pres_pastpl": str(ab_ppl),
+            }
+
+        # wesen s ~ s ~ r and quëden t ~ t ~ d: the past plural is the odd cell.
+        self.assertEqual(classify_consonant_lemma(row("s", "s", "r", False, True)),
+                         MECHANISM_VERNER_SG_PL)
+        self.assertEqual(classify_consonant_lemma(row("t", "t", "d", False, True)),
+                         MECHANISM_VERNER_SG_PL)
+        # snîden d ~ t ~ t: the alternation is medial, so it is Verner, not devoicing.
+        self.assertEqual(classify_consonant_lemma(row("d", "t", "t", True, False)),
+                         MECHANISM_VERNER_MEDIAL)
+        # scheiden d ~ t ~ d: the past singular is the odd cell. The upstream rule
+        # keeps this out of the channel, so seeing it here means the rule changed.
+        self.assertEqual(classify_consonant_lemma(row("d", "t", "d", True, True)),
+                         MECHANISM_DEVOICING)
+        self.assertNotIn(MECHANISM_DEVOICING, MORPHOLOGICAL_CATEGORIES)
 
     def test_statistical_contrast_odds_ratio(self):
         or_cons_vs_vowel_bi = self.contrasts["Cons_All_vs_Vowel_Bi"]["odds_ratio"]
