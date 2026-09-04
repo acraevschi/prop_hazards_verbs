@@ -2,7 +2,7 @@
 # ==============================================================================
 # MCMC Convergence Diagnostics Summary
 # ==============================================================================
-# Summarizes sampler health across the 5 fitted models in fits/:
+# Summarizes sampler health across every fitted model found in fits/:
 # - R-hat (Max R-hat and % <= 1.01)
 # - Minimum Bulk-ESS
 # - Minimum Tail-ESS
@@ -22,6 +22,7 @@ models_info <- list(
   list(name = "Tensor (k=10)", file = "fits/tensor_fit_marking_type_k10.rds"),
   list(name = "Smooth interaction (k=10)", file = "fits/base_fit_marking_type_k10.rds"),
   list(name = "Tensor | Token Freq. (k=10)", file = "fits/tensor_fit_marking_type_k10_token.rds"),
+  list(name = "Tensor | Token Freq. (k=4)", file = "fits/tensor_fit_marking_type_k4_token.rds"),
   list(name = "Tensor (k=4)", file = "fits/tensor_fit_marking_type_k4.rds"),
   list(name = "Smooth interaction (k=4)", file = "fits/base_fit_marking_type.rds")
 )
@@ -138,7 +139,8 @@ build_interpretation <- function(df, pct_rhat, draws) {
 # Generate Markdown table
 md_content <- paste0(
   "# MCMC Convergence Diagnostics Summary Table\n\n",
-  "Table of sampler health metrics across the 5 fitted Bayesian GAMM models in `fits/`:\n\n",
+  sprintf("Table of sampler health metrics across the %d fitted Bayesian GAMM models in `fits/`:\n\n",
+          nrow(res_df)),
   # kable() returns one element per line. Collapse it, or paste0() recycles the
   # surrounding text across every row. row.names = FALSE drops the duplicate
   # Model column that rbind() puts in the row names.

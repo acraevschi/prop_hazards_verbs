@@ -3,6 +3,9 @@
 # ==============================================================================
 # Script: analysis/run_brms.R
 # Purpose: Fits Bayesian Generalized Additive Mixed Models (GAMMs) via brms / Stan.
+#          Primary analysis uses a Vowel-Only Model with unipartite vowels as the
+#          reference baseline (intercept), testing whether bipartite vowel marking
+#          resists analogical leveling (Paul's Principle).
 #
 # Configurable CLI Options (with default fallbacks):
 #   --chains <int>         Number of MCMC chains [default: 4]
@@ -15,6 +18,8 @@
 #   --max_treedepth <int>  Maximum NUTS tree depth [default: 10]
 #   --backend <str>        Stan backend ("cmdstanr" or "rstan") [default: "cmdstanr"]
 #   --overwrite, -o        Refit models that already exist in fits/ [default: FALSE]
+#   --test                 Quick test run with small iterations/chains [default: FALSE]
+#   --dry-run              Validate stancode & data without MCMC sampling [default: FALSE]
 #   -h, --help             Show help message and exit
 #
 # Reproducibility: the seed fixes the results only because within-chain threading
@@ -24,17 +29,16 @@
 # Model Suite Overview (Evaluated in Paper Table 2):
 # ------------------------------------------------------------------------------
 # 1. Primary Model:
-#    - Tensor (k=10): `tensor_fit_marking_type_k10.rds`
-#      Full 2D tensor product interaction between time (date) and log lemma frequency.
-#
-# 2. Sensitivity & Dimension Checks:
-#    - Smooth Interaction (k=10): `base_fit_marking_type_k10.rds` (additive smooths, k=10)
-#    - Smooth Interaction (k=4): `base_fit_marking_type.rds` (additive smooths, k=4)
-#    - Tensor (k=4): `tensor_fit_marking_type_k4.rds` (tensor product with restricted k=4)
-#
-# 3. Frequency Operationalization Check:
 #    - Tensor | Token Freq (k=10): `tensor_fit_marking_type_k10_token.rds`
-#      Evaluates token frequency (cell-level) vs. lemma frequency.
+#      Full 2D tensor product interaction between time (date) and log token frequency.
+#      Vowel-only observations with vowel_unipartite reference baseline (highest LOO ELPD).
+#
+# 2. Dimension & Frequency Sensitivity Checks:
+#    - Tensor | Token Freq (k=4): `tensor_fit_marking_type_k4_token.rds` (token frequency, k=4)
+#    - Tensor | Lemma Freq (k=10): `tensor_fit_marking_type_k10.rds` (lemma frequency, k=10)
+#    - Tensor | Lemma Freq (k=4): `tensor_fit_marking_type_k4.rds` (lemma frequency, k=4)
+#    - Smooth Interaction (k=10): `base_fit_marking_type_k10.rds` (additive smooths, k=10)
+#    - Smooth Interaction (k=4): `base_fit_marking_type.rds` (additive smooths, k=4 baseline)
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -51,13 +55,17 @@ CLI_DEFAULTS <- list(
   adapt_delta = 0.99,
   max_treedepth = 10L,
   backend = "cmdstanr",
-  overwrite = FALSE
+  overwrite = FALSE,
+  test = FALSE,
+  dry_run = FALSE,
+  model = "all"
 )
 
 CLI_TYPES <- c(
   chains = "int", iter = "int", warmup = "int", cores = "int",
   threads = "int", seed = "int", adapt_delta = "num",
-  max_treedepth = "int", backend = "str", overwrite = "flag"
+  max_treedepth = "int", backend = "str", overwrite = "flag",
+  test = "flag", dry_run = "flag", model = "str"
 )
 
 print_cli_help <- function() {
@@ -73,9 +81,12 @@ print_cli_help <- function() {
   cat("  --max_treedepth <int>  Maximum NUTS tree depth [default: 10]\n")
   cat("  --backend <str>        Stan backend (cmdstanr or rstan) [default: cmdstanr]\n")
   cat("  --overwrite, -o        Refit models that already exist in fits/ [default: FALSE]\n")
+  cat("  --test                 Quick test run with small iterations/chains [default: FALSE]\n")
+  cat("  --dry-run              Validate formulas & Stan code without sampling [default: FALSE]\n")
+  cat("  --model <str>          Which model to fit (1-6, or all) [default: all]\n")
   cat("  -h, --help             Show this help message and exit\n\n")
   cat("Booleans accept true/false, yes/no, and 1/0. You can also write\n")
-  cat("--no-overwrite.\n\n")
+  cat("--no-overwrite, --no-test, etc.\n\n")
 }
 
 # Convert one raw string to the type that the option needs. Stop on bad input.
@@ -117,6 +128,9 @@ parse_cli_args <- function(cli_args) {
     if (arg == "-o") {
       arg <- "--overwrite"
     }
+    if (arg == "--dryrun") {
+      arg <- "--dry-run"
+    }
     if (!grepl("^--[A-Za-z]", arg)) {
       stop(sprintf("Unexpected argument '%s'. Run with --help for the options.", arg),
            call. = FALSE)
@@ -125,12 +139,13 @@ parse_cli_args <- function(cli_args) {
     # Split the --name=value form from the --name value form.
     inline <- grepl("=", arg, fixed = TRUE)
     name <- if (inline) sub("^--([^=]+)=.*$", "\\1", arg) else sub("^--", "", arg)
+    name <- gsub("-", "_", name)
     raw <- if (inline) sub("^--[^=]+=", "", arg) else NA_character_
 
     # Handle the --no-<flag> form.
     negated <- FALSE
-    if (!name %in% names(CLI_TYPES) && grepl("^no-", name)) {
-      stripped <- sub("^no-", "", name)
+    if (!name %in% names(CLI_TYPES) && grepl("^no_", name)) {
+      stripped <- sub("^no_", "", name)
       if (stripped %in% names(CLI_TYPES) && CLI_TYPES[[stripped]] == "flag") {
         name <- stripped
         negated <- TRUE
@@ -175,7 +190,12 @@ parse_cli_args <- function(cli_args) {
     i <- i + 1
   }
 
-  if (is.null(params$warmup)) {
+  if (params$test) {
+    params$chains <- min(params$chains, 2L)
+    params$cores <- min(params$cores, 2L)
+    params$iter <- 50L
+    params$warmup <- 25L
+  } else if (is.null(params$warmup)) {
     params$warmup <- as.integer(params$iter / 2)
   }
 
@@ -203,6 +223,7 @@ cfg <- parse_cli_args(commandArgs(trailingOnly = TRUE))
 
 cat("==============================================================================\n")
 cat("Bayesian GAMM Estimation: Hermann Paul's Principle in High German Strong Verbs\n")
+cat("  (Option A: Vowel-Only Model with Unipartite Reference Baseline)\n")
 cat("==============================================================================\n")
 cat(sprintf("MCMC Configuration:\n"))
 cat(sprintf(" - Chains: %d | Iterations: %d | Warmup: %d | Seed: %d\n", cfg$chains, cfg$iter, cfg$warmup, cfg$seed))
@@ -210,7 +231,10 @@ cat(sprintf(" - Parallel chains: %d | Threads/Chain: %d | Total CPUs: %d | Backe
             min(cfg$chains, cfg$cores), cfg$threads,
             min(cfg$chains, cfg$cores) * cfg$threads, cfg$backend))
 cat(sprintf(" - adapt_delta: %.3f | max_treedepth: %d\n", cfg$adapt_delta, cfg$max_treedepth))
-cat(sprintf(" - Overwrite existing fits: %s\n", if (cfg$overwrite) "TRUE (--overwrite)" else "FALSE (skip existing)"))
+cat(sprintf(" - Overwrite existing fits: %s | Test mode: %s | Dry-run: %s\n",
+            if (cfg$overwrite) "TRUE (--overwrite)" else "FALSE (skip existing)",
+            if (cfg$test) "TRUE" else "FALSE",
+            if (cfg$dry_run) "TRUE" else "FALSE"))
 cat("==============================================================================\n\n")
 
 suppressPackageStartupMessages({
@@ -220,6 +244,18 @@ suppressPackageStartupMessages({
   library(cmdstanr)
   library(rstan)
 })
+
+# Configure cmdstanr path and environment if available
+if (cfg$backend == "cmdstanr") {
+  user_cmdstan <- file.path(Sys.getenv("HOME"), ".cmdstan/cmdstan-2.38.0")
+  if (dir.exists(user_cmdstan)) {
+    cmdstanr::set_cmdstan_path(user_cmdstan)
+  }
+  tbb_path <- file.path(cmdstanr::cmdstan_path(), "stan/lib/stan_math/lib/tbb")
+  if (dir.exists(tbb_path)) {
+    Sys.setenv(DYLD_LIBRARY_PATH = paste0(tbb_path, ":", Sys.getenv("DYLD_LIBRARY_PATH")))
+  }
+}
 
 # ------------------------------------------------------------------------------
 # 1. Data Loading & Frequency Aggregation
@@ -308,7 +344,7 @@ base_model_data <- raw_data %>%
     log_token_freq = log(token_freq_avg + 0.0001)
   )
 
-# Construct 3-level joint marking_type predictor to avoid structural collinearity
+# Construct joint marking_type predictor and filter to vowel-only modeling dataset
 model_data <- base_model_data %>%
   mutate(
     log_alt_pres_freq = if_else(has_alt_pres == "yes", log(target_alt_pres_freq), 0),
@@ -317,11 +353,16 @@ model_data <- base_model_data %>%
       element_type == "vowel" & is_bipartite %in% c(0, "0") ~ "vowel_unipartite",
       element_type == "vowel" & is_bipartite %in% c(1, "1") ~ "vowel_bipartite",
       element_type == "consonant" & is_bipartite %in% c(1, "1") ~ "consonant_bipartite"
-    ),
-    # Ensure factor structures
-    has_alt_pres = as.factor(has_alt_pres),
-    has_alt_past = as.factor(has_alt_past),
-    marking_type = as.factor(marking_type),
+    )
+  ) %>%
+  # Filter out consonant rows for the primary vowel-only model
+  filter(marking_type %in% c("vowel_unipartite", "vowel_bipartite")) %>%
+  mutate(
+    # Explicitly set vowel_unipartite as the reference level (baseline intercept)
+    marking_type = factor(marking_type, levels = c("vowel_unipartite", "vowel_bipartite")),
+    # Set "yes" as reference level for presence of alternations (typical strong verb baseline)
+    has_alt_pres = factor(has_alt_pres, levels = c("yes", "no")),
+    has_alt_past = factor(has_alt_past, levels = c("yes", "no")),
     element_type = as.factor(element_type),
     is_bipartite = as.factor(is_bipartite),
     variety = as.factor(variety),
@@ -339,7 +380,7 @@ model_data <- base_model_data %>%
   )
 
 model_data <- unique(model_data)
-cat(sprintf("Prepared %d modeling observations across %d unique lemmas.\n", nrow(model_data), n_distinct(model_data$lemma_std)))
+cat(sprintf("Prepared %d vowel-only modeling observations across %d unique lemmas.\n", nrow(model_data), n_distinct(model_data$lemma_std)))
 
 # Save prepared analysis dataset
 write.csv(model_data, "analysis/data_for_analysis.csv", row.names = FALSE)
@@ -377,6 +418,13 @@ fit_and_cache_model <- function(formula, data, priors, cfg, threads, mcmc_contro
   cat(sprintf("\n%s...\n", model_title))
   rds_path <- paste0(file_base, ".rds")
 
+  if (cfg$dry_run) {
+    cat(sprintf("[DRY-RUN] Validating Stan code and data structures for %s...\n", file_base))
+    sc <- make_stancode(formula = formula, data = data, prior = priors)
+    cat(sprintf("[DRY-RUN] Stan code generated successfully (%d characters).\n", nchar(sc)))
+    return(invisible(NULL))
+  }
+
   if (file.exists(rds_path) && !cfg$overwrite) {
     cat(sprintf("File '%s' already exists, skipping. Run with --overwrite to refit it.\n", rds_path))
     fit <- readRDS(rds_path)
@@ -405,7 +453,16 @@ fit_and_cache_model <- function(formula, data, priors, cfg, threads, mcmc_contro
 
   # Save before the LOO step, so that a completed fit is never lost.
   saveRDS(fit, rds_path)
-  add_criterion(fit, "loo", file = file_base)
+  
+  if (!cfg$test || brms::ndraws(fit) >= 100) {
+    tryCatch({
+      fit <- add_criterion(fit, "loo", file = file_base)
+    }, error = function(e) {
+      cat(sprintf("Warning: Could not compute LOO-CV for %s: %s\n", file_base, e$message))
+    })
+  }
+  
+  fit
 }
 
 # ------------------------------------------------------------------------------
@@ -415,151 +472,193 @@ fit_and_cache_model <- function(formula, data, priors, cfg, threads, mcmc_contro
 # ------------------------------------------------------------------------------
 # Model 1: Smooth Interaction (k=4) [Appendix Baseline]
 # ------------------------------------------------------------------------------
-formula_base_k4 <- bf(
-  has_levelled ~
-    s(date, k = 4) +
-    marking_type +
-    s(date, by = marking_type, k = 4) +
-    log_freq + s(date, by = log_freq, k = 4) +
-    has_alt_pres + log_alt_pres_freq +
-    has_alt_past + log_alt_past_freq +
-    std_infl + s(date, by = std_infl, k = 4) +
-    std_infl * marking_type +
-    (1 | variety) + s(date, by = variety, k = 4) +
-    (1 | lemma_std) +
-    (1 | id),
-  family = bernoulli()
-)
+if (cfg$model %in% c("all", "1", "base_k4")) {
+  formula_base_k4 <- bf(
+    has_levelled ~
+      s(date, k = 4) +
+      marking_type +
+      s(date, by = marking_type, k = 4) +
+      log_freq + s(date, by = log_freq, k = 4) +
+      has_alt_pres + log_alt_pres_freq +
+      has_alt_past + log_alt_past_freq +
+      std_infl + s(date, by = std_infl, k = 4) +
+      std_infl * marking_type +
+      (1 | variety) + s(date, by = variety, k = 4) +
+      (1 | lemma_std) +
+      (1 | id),
+    family = bernoulli()
+  )
 
-fit_base_k4 <- fit_and_cache_model(
-  formula = formula_base_k4,
-  data = model_data,
-  priors = priors,
-  cfg = cfg,
-  threads = threads,
-  mcmc_control = mcmc_control,
-  file_base = "fits/base_fit_marking_type",
-  model_title = "[1/5] Estimating Model 1: Smooth Interaction GAMM (k=4) [Appendix Baseline]"
-)
+  fit_base_k4 <- fit_and_cache_model(
+    formula = formula_base_k4,
+    data = model_data,
+    priors = priors,
+    cfg = cfg,
+    threads = threads,
+    mcmc_control = mcmc_control,
+    file_base = "fits/base_fit_marking_type",
+    model_title = "[1/6] Estimating Model 1: Smooth Interaction GAMM (k=4) [Appendix Baseline]"
+  )
+}
 
 # ------------------------------------------------------------------------------
 # Model 2: Smooth Interaction (k=10)
 # ------------------------------------------------------------------------------
-formula_base_k10 <- bf(
-  has_levelled ~
-    s(date, k = 10) +
-    marking_type +
-    s(date, by = marking_type, k = 10) +
-    log_freq + s(date, by = log_freq, k = 10) +
-    has_alt_pres + log_alt_pres_freq +
-    has_alt_past + log_alt_past_freq +
-    std_infl + s(date, by = std_infl, k = 10) +
-    std_infl * marking_type +
-    (1 | variety) + s(date, by = variety, k = 10) +
-    (1 | lemma_std) +
-    (1 | id),
-  family = bernoulli()
-)
+if (cfg$model %in% c("all", "2", "base_k10")) {
+  formula_base_k10 <- bf(
+    has_levelled ~
+      s(date, k = 10) +
+      marking_type +
+      s(date, by = marking_type, k = 10) +
+      log_freq + s(date, by = log_freq, k = 10) +
+      has_alt_pres + log_alt_pres_freq +
+      has_alt_past + log_alt_past_freq +
+      std_infl + s(date, by = std_infl, k = 10) +
+      std_infl * marking_type +
+      (1 | variety) + s(date, by = variety, k = 10) +
+      (1 | lemma_std) +
+      (1 | id),
+    family = bernoulli()
+  )
 
-fit_base_k10 <- fit_and_cache_model(
-  formula = formula_base_k10,
-  data = model_data,
-  priors = priors,
-  cfg = cfg,
-  threads = threads,
-  mcmc_control = mcmc_control,
-  file_base = "fits/base_fit_marking_type_k10",
-  model_title = "[2/5] Estimating Model 2: Smooth Interaction GAMM (k=10)"
-)
+  fit_base_k10 <- fit_and_cache_model(
+    formula = formula_base_k10,
+    data = model_data,
+    priors = priors,
+    cfg = cfg,
+    threads = threads,
+    mcmc_control = mcmc_control,
+    file_base = "fits/base_fit_marking_type_k10",
+    model_title = "[2/6] Estimating Model 2: Smooth Interaction GAMM (k=10)"
+  )
+}
 
 # ------------------------------------------------------------------------------
 # Model 3: Primary Tensor Product GAMM (k=10) [Primary Model in Paper]
 # ------------------------------------------------------------------------------
-formula_tensor_k10 <- bf(
-  has_levelled ~
-    s(date, k = 10) +
-    marking_type +
-    s(date, by = marking_type, k = 10) +
-    log_freq + t2(date, log_freq, k = 10) +
-    has_alt_pres + log_alt_pres_freq +
-    has_alt_past + log_alt_past_freq +
-    std_infl + s(date, by = std_infl, k = 10) +
-    std_infl * marking_type +
-    (1 | variety) + s(date, by = variety, k = 10) +
-    (1 | lemma_std) +
-    (1 | id),
-  family = bernoulli()
-)
+if (cfg$model %in% c("all", "3", "tensor_k10")) {
+  formula_tensor_k10 <- bf(
+    has_levelled ~
+      s(date, k = 10) +
+      marking_type +
+      s(date, by = marking_type, k = 10) +
+      log_freq + t2(date, log_freq, k = 10) +
+      has_alt_pres + log_alt_pres_freq +
+      has_alt_past + log_alt_past_freq +
+      std_infl + s(date, by = std_infl, k = 10) +
+      std_infl * marking_type +
+      (1 | variety) + s(date, by = variety, k = 10) +
+      (1 | lemma_std) +
+      (1 | id),
+    family = bernoulli()
+  )
 
-fit_tensor_k10 <- fit_and_cache_model(
-  formula = formula_tensor_k10,
-  data = model_data,
-  priors = priors,
-  cfg = cfg,
-  threads = threads,
-  mcmc_control = mcmc_control,
-  file_base = "fits/tensor_fit_marking_type_k10",
-  model_title = "[3/5] Estimating Model 3: Primary Tensor Product GAMM (k=10) [Primary Model in Paper]"
-)
+  fit_tensor_k10 <- fit_and_cache_model(
+    formula = formula_tensor_k10,
+    data = model_data,
+    priors = priors,
+    cfg = cfg,
+    threads = threads,
+    mcmc_control = mcmc_control,
+    file_base = "fits/tensor_fit_marking_type_k10",
+    model_title = "[3/6] Estimating Model 3: Primary Tensor Product GAMM (k=10) [Primary Model in Paper]"
+  )
+}
 
 # ------------------------------------------------------------------------------
 # Model 4: Tensor Product GAMM (k=4) [Sensitivity Check on Basis Dimension]
 # ------------------------------------------------------------------------------
-formula_tensor_k4 <- bf(
-  has_levelled ~
-    s(date, k = 4) +
-    marking_type +
-    s(date, by = marking_type, k = 4) +
-    log_freq + t2(date, log_freq, k = 4) +
-    has_alt_pres + log_alt_pres_freq +
-    has_alt_past + log_alt_past_freq +
-    std_infl + s(date, by = std_infl, k = 4) +
-    std_infl * marking_type +
-    (1 | variety) + s(date, by = variety, k = 4) +
-    (1 | lemma_std) +
-    (1 | id),
-  family = bernoulli()
-)
+if (cfg$model %in% c("all", "4", "tensor_k4")) {
+  formula_tensor_k4 <- bf(
+    has_levelled ~
+      s(date, k = 4) +
+      marking_type +
+      s(date, by = marking_type, k = 4) +
+      log_freq + t2(date, log_freq, k = 4) +
+      has_alt_pres + log_alt_pres_freq +
+      has_alt_past + log_alt_past_freq +
+      std_infl + s(date, by = std_infl, k = 4) +
+      std_infl * marking_type +
+      (1 | variety) + s(date, by = variety, k = 4) +
+      (1 | lemma_std) +
+      (1 | id),
+    family = bernoulli()
+  )
 
-fit_tensor_k4 <- fit_and_cache_model(
-  formula = formula_tensor_k4,
-  data = model_data,
-  priors = priors,
-  cfg = cfg,
-  threads = threads,
-  mcmc_control = mcmc_control,
-  file_base = "fits/tensor_fit_marking_type_k4",
-  model_title = "[4/5] Estimating Model 4: Tensor Product GAMM (k=4) [Sensitivity Check on Basis Dimension]"
-)
+  fit_tensor_k4 <- fit_and_cache_model(
+    formula = formula_tensor_k4,
+    data = model_data,
+    priors = priors,
+    cfg = cfg,
+    threads = threads,
+    mcmc_control = mcmc_control,
+    file_base = "fits/tensor_fit_marking_type_k4",
+    model_title = "[4/6] Estimating Model 4: Tensor Product GAMM (k=4) [Sensitivity Check on Basis Dimension]"
+  )
+}
 
 # ------------------------------------------------------------------------------
 # Model 5: Tensor Product with Token Frequency (k=10) [Sensitivity Check on Frequency]
 # ------------------------------------------------------------------------------
-formula_tensor_token_k10 <- bf(
-  has_levelled ~
-    s(date, k = 10) +
-    marking_type +
-    s(date, by = marking_type, k = 10) +
-    log_token_freq + t2(date, log_token_freq, k = 10) +
-    has_alt_pres + log_alt_pres_freq +
-    has_alt_past + log_alt_past_freq +
-    std_infl + s(date, by = std_infl, k = 10) +
-    std_infl * marking_type +
-    (1 | variety) + s(date, by = variety, k = 10) +
-    (1 | lemma_std) +
-    (1 | id),
-  family = bernoulli()
-)
+if (cfg$model %in% c("all", "5", "tensor_token", "token", "tensor_token_k10", "token_k10")) {
+  formula_tensor_token_k10 <- bf(
+    has_levelled ~
+      s(date, k = 10) +
+      marking_type +
+      s(date, by = marking_type, k = 10) +
+      log_token_freq + t2(date, log_token_freq, k = 10) +
+      has_alt_pres + log_alt_pres_freq +
+      has_alt_past + log_alt_past_freq +
+      std_infl + s(date, by = std_infl, k = 10) +
+      std_infl * marking_type +
+      (1 | variety) + s(date, by = variety, k = 10) +
+      (1 | lemma_std) +
+      (1 | id),
+    family = bernoulli()
+  )
 
-fit_tensor_token_k10 <- fit_and_cache_model(
-  formula = formula_tensor_token_k10,
-  data = model_data,
-  priors = priors,
-  cfg = cfg,
-  threads = threads,
-  mcmc_control = mcmc_control,
-  file_base = "fits/tensor_fit_marking_type_k10_token",
-  model_title = "[5/5] Estimating Model 5: Tensor Product with Token Frequency (k=10) [Sensitivity Check on Frequency]"
-)
+  fit_tensor_token_k10 <- fit_and_cache_model(
+    formula = formula_tensor_token_k10,
+    data = model_data,
+    priors = priors,
+    cfg = cfg,
+    threads = threads,
+    mcmc_control = mcmc_control,
+    file_base = "fits/tensor_fit_marking_type_k10_token",
+    model_title = "[5/6] Estimating Model 5: Tensor Product with Token Frequency (k=10) [Sensitivity Check on Frequency]"
+  )
+}
 
-cat("\nAll 5 models fitted/verified and cached in fits/ successfully!\n")
+# ------------------------------------------------------------------------------
+# Model 6: Tensor Product with Token Frequency (k=4) [Sensitivity Check on Basis Dimension + Frequency]
+# ------------------------------------------------------------------------------
+if (cfg$model %in% c("all", "6", "tensor_token_k4", "token_k4", "token4")) {
+  formula_tensor_token_k4 <- bf(
+    has_levelled ~
+      s(date, k = 4) +
+      marking_type +
+      s(date, by = marking_type, k = 4) +
+      log_token_freq + t2(date, log_token_freq, k = 4) +
+      has_alt_pres + log_alt_pres_freq +
+      has_alt_past + log_alt_past_freq +
+      std_infl + s(date, by = std_infl, k = 4) +
+      std_infl * marking_type +
+      (1 | variety) + s(date, by = variety, k = 4) +
+      (1 | lemma_std) +
+      (1 | id),
+    family = bernoulli()
+  )
+
+  fit_tensor_token_k4 <- fit_and_cache_model(
+    formula = formula_tensor_token_k4,
+    data = model_data,
+    priors = priors,
+    cfg = cfg,
+    threads = threads,
+    mcmc_control = mcmc_control,
+    file_base = "fits/tensor_fit_marking_type_k4_token",
+    model_title = "[6/6] Estimating Model 6: Tensor Product with Token Frequency (k=4) [Sensitivity Check on Basis Dimension + Frequency]"
+  )
+}
+
+cat("\nRequested model estimation complete!\n")

@@ -112,6 +112,14 @@ EQUIV_SETS = [
     {"s", "z", "ʦ", "ʃ", "ʒ", "ss", "ß"},  # Sibilants
 ]
 
+# The voicing pairs that Auslautverhärtung can produce in a word-final coda,
+# and that are therefore ambiguous between devoicing and Verner's Law when the
+# past singular is one of the two cells compared. EQUIV_SETS already treats
+# p ~ b and k ~ g as spelling variants, so they never reach a GW test; the
+# dentals are held apart there on purpose, because d ~ t is the Class I
+# grammatischer Wechsel, and they are what this set has to name.
+DEVOICING_PAIRS = frozenset({frozenset({"t", "d"})})
+
 PREFIXES = {
     "MHG": [
         "ge",
@@ -381,6 +389,16 @@ def are_vowels_equivalent(v1, v2, variety, sc_dict, protected=None):
 def clean_form(form):
     """
     Robust cleaning that strips combining diacritics from medieval texts.
+
+    Known limitation: an orthographic u that spells /v/ before a vowel is left
+    as a vowel. ReF writes gevallen as geuallen and bevolhen as beuolhen, so the
+    prefix is not recognised and the prefix vowel joins the root nucleus
+    (geuallen -> ('eua', 'l'), where the root is ('a', 'l')). Deciding u from v
+    needs the surrounding graphotactics and often the lemma, and no rule
+    separated geuallen from a genuine u-initial stem without new errors. Such
+    rows match neither anchor nor target and are coded NA, so the cost is lost
+    data rather than false events: 40 of 49,616 coded rows, all in ReF. See
+    "Known Limitations of the Coding Pipeline" in README.md.
     """
     if pd.isna(form):
         return ""
@@ -526,6 +544,7 @@ def build_lemma_index(df):
                 prefix = clean_form(part)
                 if prefix:
                     prefixes.add(prefix)
+                    prefixes.update(PREFIX_SPELLING_VARIANTS.get(prefix, ()))
             onsets.add(_onset_of(root))
         if onsets:
             index[key] = {"prefixes": prefixes, "onsets": onsets}
@@ -539,6 +558,21 @@ def build_lemma_index(df):
 # corpora, or every ENHG participle of vâhen, slahen and binden looks like a
 # different verb and keeps its prefix.
 ONSET_CLUSTER_FOLD = (("sch", "s"), ("ʃ", "s"))
+
+# Onsets that a ReF scribe writes for a single sound. Unlike ONSET_CLUSTER_FOLD
+# these replace the whole onset, because ph and pf ARE the onset in enphangen
+# and enpfangen, where MHG wrote v: ent-vâhen -> empfangen.
+ONSET_WHOLE_FOLD = {"ph": "f", "pf": "f", "ff": "f", "v": "f"}
+
+# ReF spellings of the MHG prefixes that build_lemma_index reads off ReM lemma
+# strings. ent- assimilates to the following labial and its dental is written
+# t, p or nothing at all: ent-vâhen surfaces as entphangen, enpfangen,
+# enphangen, empfangen and intfangen. Without these the prefix goes unstripped
+# and the root is lost. Keyed on the MHG prefix so that only lemmas whose own
+# lemma string carries it are affected.
+PREFIX_SPELLING_VARIANTS = {
+    "ent": ("ent", "entp", "entph", "entpf", "emp", "enp", "enph", "enpf", "en", "int"),
+}
 ONSET_LETTER_FOLD = str.maketrans(
     {
         "v": "f",  # vâhen ~ fangen, vallen ~ fallen
@@ -556,6 +590,8 @@ ONSET_LETTER_FOLD = str.maketrans(
 
 def _fold_onset(onset):
     """Reduce an onset to a shape that survives ReM/ReF spelling differences."""
+    if onset in ONSET_WHOLE_FOLD:
+        return ONSET_WHOLE_FOLD[onset].translate(ONSET_LETTER_FOLD)
     for long_form, short_form in ONSET_CLUSTER_FOLD:
         # slahen ~ schlagen, snîden ~ schneiden, swimmen ~ schwimmen. Only when
         # something follows, so that sch- before a vowel (schehen) is left alone.
@@ -812,6 +848,31 @@ def step_2_establish_baseline(df):
 
     # --- NEW LOGIC: Calculate Pairwise Distinctions ---
 
+    def _coda_known(row, slot):
+        """
+        True when the paradigm actually attests a coda for this cell.
+
+        A shape test that reads "the other cell agrees" must not be satisfied by
+        a cell the baseline never resolved. check_alternation collapses "agrees"
+        and "absent" into the same False, so the bipartite rule asks this
+        separately.
+        """
+        value = row.get(f"anchor_coda_{slot}")
+        return not pd.isna(value) and str(value).strip() != ""
+
+    def _last_chars(row, slot1, slot2):
+        """The frozenset of the two codas' final characters, as EQUIV_SETS compares them."""
+        out = []
+        for slot in (slot1, slot2):
+            value = row.get(f"anchor_coda_{slot}")
+            if pd.isna(value):
+                return frozenset()
+            text = str(value).strip().lower()
+            if not text:
+                return frozenset()
+            out.append(text[-1])
+        return frozenset(out)
+
     def check_alternation(row, slot1, slot2):
         """
         Returns (has_ablaut, has_gw) for two specific slots.
@@ -890,8 +951,35 @@ def step_2_establish_baseline(df):
         # anywhere" clause. Nearly every strong verb has ablaut somewhere, so
         # that condition reduces to "any consonant difference at all" and hands
         # the treatment variable over to extraction noise.
-        gw_verner_sg_pl = gw_sg_pl and not gw_pres_sg
-        gw_paradigmatic_pres_sg = gw_pres_sg and not gw_sg_pl
+        # Both shape tests turn on "the deciding cell does NOT differ", and
+        # check_alternation returns False for a pair it cannot see. A missing
+        # anchor therefore satisfies the test for want of data rather than on
+        # the evidence, which is how scheiden d ~ t ~ ? passes as Verner
+        # precisely because its past plural is absent. Each test asks for its
+        # deciding cell separately.
+        #
+        # For the medial test the deciding cell is the past plural: it is what
+        # says the alternation is not confined to word-final position.
+        #
+        # For the Verner test the deciding cell is the present, which is what
+        # separates quëden t ~ t ~ d from scheiden d ~ t ~ d. That one is only
+        # needed when devoicing could have produced the sg ~ pl contrast in the
+        # first place. are_cons_equivalent already absorbs p ~ b and k ~ g, so
+        # the dentals are the only voicing pair that still reaches here - kept
+        # apart on purpose, because d ~ t is the Class I alternation. An s ~ r
+        # or h ~ g contrast is not something Auslautverhärtung can make, so it
+        # needs no present-tense witness: this is what lets wesen through on
+        # was ~ wâren alone.
+        pastpl_coda_known = _coda_known(row, "pastpl")
+        pres_coda_known = _coda_known(row, "pres")
+        sg_pl_is_dental = _last_chars(row, "pastsg", "pastpl") in DEVOICING_PAIRS
+
+        gw_verner_sg_pl = (
+            gw_sg_pl
+            and not gw_pres_sg
+            and (pres_coda_known or not sg_pl_is_dental)
+        )
+        gw_paradigmatic_pres_sg = gw_pres_sg and pastpl_coda_known and not gw_sg_pl
 
         is_bipartite = (
             (ab_pres_sg and gw_paradigmatic_pres_sg)
@@ -1069,6 +1157,48 @@ def step_3_establish_targets(
                 "target_past_source": past_source,
             }
         )
+
+    # The loop above walks ENHG groups, so a lemma that ReF never attests never
+    # reaches it - and the curated modern form, which is applied inside the
+    # loop, never reaches that lemma either. That gate belongs on the corpus
+    # fallback alone: the endpoint of kiesen is kor whether or not ReF happens
+    # to write the verb down. Verbs whose modern reflex the curator could not
+    # find are unaffected, because they have no curated form to carry.
+    curated_only = []
+    if nhg:
+        covered = {(str(entry["lemma_id"]), entry["variety"]) for entry in target_data}
+        seen = df[["lemma_id", "variety"]].dropna().drop_duplicates()
+        for _, place in seen.iterrows():
+            lid, var = place["lemma_id"], place["variety"]
+            if (str(lid), var) in covered:
+                continue
+            modern = nhg.get(str(lid))
+            if not modern:
+                continue
+            curated_only.append(
+                {
+                    "lemma_id": lid,
+                    "variety": var,
+                    "target_vowel_pres": modern.get("pres", (pd.NA, pd.NA))[0],
+                    "target_coda_pres": modern.get("pres", (pd.NA, pd.NA))[1],
+                    "target_vowel_past": modern.get("past", (pd.NA, pd.NA))[0],
+                    "target_coda_past": modern.get("past", (pd.NA, pd.NA))[1],
+                    # No ENHG attestation stands behind these, so there is no
+                    # corpus date or token count to report.
+                    "target_pres_date": pd.NA,
+                    "target_pres_n": 0,
+                    "target_past_date": pd.NA,
+                    "target_past_n": 0,
+                    "target_pres_source": "nhg" if "pres" in modern else "none",
+                    "target_past_source": "nhg" if "past" in modern else "none",
+                }
+            )
+    if curated_only:
+        print(
+            f"Carried a curated modern target to {len(curated_only)} lemma-variety "
+            f"groups that ReF never attests."
+        )
+    target_data.extend(curated_only)
 
     result = pd.DataFrame(target_data)
 

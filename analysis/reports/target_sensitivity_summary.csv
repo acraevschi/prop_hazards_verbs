@@ -1,5 +1,5 @@
 Comparison,Element,Analyzable Pairs,Concordant Labels,Discordant Labels,Concordance Rate (%),Flips 0->1,Flips 1->0
-Hybrid Fallback vs Baseline,Vowels,35556,35556,0,100.00%,0,0
+Hybrid Fallback vs Baseline,Vowels,35564,35564,0,100.00%,0,0
 Hybrid Fallback vs Baseline,Consonants,1298,1298,0,100.00%,0,0
-Strict (>=1500) vs Baseline,Vowels,35140,35140,0,100.00%,0,0
+Strict (>=1500) vs Baseline,Vowels,35148,35148,0,100.00%,0,0
 Strict (>=1500) vs Baseline,Consonants,1272,1272,0,100.00%,0,0
