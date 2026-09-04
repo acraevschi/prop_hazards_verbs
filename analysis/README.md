@@ -12,7 +12,7 @@ analysis/
 ├── data_for_analysis.csv                    <- Prepared vowel-only modeling dataset (16,931 rows, 106 unique lemmas)
 │
 ├── 🧠 Core Bayesian Modeling Pipeline
-│   ├── run_brms.R                           <- Fits 5 Bayesian GAMM models via brms / Stan (Option A: Vowel-Only)
+│   ├── run_brms.R                           <- Fits 6 Bayesian GAMM models via brms / Stan (Option A: Vowel-Only)
 │   ├── analyze_models.Rmd                   <- LOO-CV model comparison, hypothesis testing, figure exports
 │   └── analyze_models.html                  <- Rendered R Markdown analysis report
 │
@@ -47,16 +47,17 @@ analysis/
 ### 1. Core Bayesian Modeling (Option A: Vowel-Only Model)
 
 * **`run_brms.R`**:
-  - **Purpose**: Prepares model variables and fits 5 Bayesian Generalized Additive Mixed Models (GAMMs) using `brms` and Stan on the **vowel-only** dataset.
+  - **Purpose**: Prepares model variables and fits 6 Bayesian Generalized Additive Mixed Models (GAMMs) using `brms` and Stan on the **vowel-only** dataset.
   - **Factor Specification**:
     - Consonant observations are filtered out to eliminate confounding from orthographic coda devoicing (*Auslautverhärtung*).
     - `marking_type` is parameterized with `vowel_unipartite` explicitly as the reference factor level (baseline $\beta_0$), so the `vowel_bipartite` parameter measures the treatment contrast directly.
   - **Models Fitted**:
-    1. `base_fit_marking_type` (Smooth Interaction GAMM, $k=4$, appendix baseline)
-    2. `base_fit_marking_type_k10` (Smooth Interaction GAMM, $k=10$)
-    3. `tensor_fit_marking_type_k10` (**Primary Model in Paper**, Tensor Product $t_2(\text{date}, \log(\text{freq}))$, $k=10$)
-    4. `tensor_fit_marking_type_k4` (Tensor Product GAMM, $k=4$, sensitivity check on basis dimension)
-    5. `tensor_fit_marking_type_k10_token` (Tensor Product with token frequency, sensitivity check on frequency definition)
+    1. `tensor_fit_marking_type_k10_token` (**Primary Model in Paper**, Tensor Product $t_2(\text{date}, \log(\text{token\_freq}))$, $k=10$, best predictive performance $\Delta\text{elpd}=0.0$)
+    2. `tensor_fit_marking_type_k4_token` (Tensor Product GAMM with token frequency, $k=4$, dimension sensitivity check)
+    3. `tensor_fit_marking_type_k10` (Tensor Product GAMM with lemma frequency, $k=10$, frequency operationalization check)
+    4. `tensor_fit_marking_type_k4` (Tensor Product GAMM with lemma frequency, $k=4$, sensitivity check on basis dimension)
+    5. `base_fit_marking_type_k10` (Smooth Interaction GAMM with lemma frequency, $k=10$)
+    6. `base_fit_marking_type` (Smooth Interaction GAMM with lemma frequency, $k=4$, appendix baseline)
   - **CLI Flags**: Supports `--test` (fast test fit) and `--dry-run` (validates formulas and Stan code without sampling) alongside `--chains`, `--iter`, `--cores`, `--threads`, `--backend`, and `--overwrite`.
   - **Outputs**: Serialized `.rds` model objects in `fits/` and prepared modeling data in `analysis/data_for_analysis.csv`.
 
@@ -80,7 +81,7 @@ analysis/
 ### 3. Sampler Convergence & Health Diagnostics
 
 * **`mcmc_convergence.R`**:
-  - **Purpose**: Audits Stan MCMC health across all 5 fitted models in `fits/` to guarantee reliable posterior exploration.
+  - **Purpose**: Audits Stan MCMC health across all 6 fitted models in `fits/` to guarantee reliable posterior exploration.
   - **Metrics**: Max $\hat{R}$, percentage of parameters with $\hat{R} \le 1.01$, minimum Bulk-ESS, minimum Tail-ESS, divergent transitions, and maximum treedepth hits.
   - **Outputs**: `reports/mcmc_convergence_table.md` and `reports/mcmc_convergence.csv`.
 

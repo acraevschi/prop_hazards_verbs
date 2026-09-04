@@ -50,21 +50,26 @@ ggplot(model_data, aes(x = date)) +
 # Model loading and comparison
 
 ```{r}
-# Load the three new models
-fit_base   <- readRDS("../fits/base_fit_marking_type.rds")
-fit_k10    <- readRDS("../fits/base_fit_marking_type_k10.rds")
-fit_tensor <- readRDS("../fits/tensor_fit_marking_type_k10.rds")
-fit_tensor_k4 <- readRDS("../fits/tensor_fit_marking_type_k4.rds")
-fit_tensor_k10_token <- readRDS("../fits/tensor_fit_marking_type_k10_token.rds")
+# Load the models dynamically based on available RDS files
+fit_base   <- if (file.exists("../fits/base_fit_marking_type.rds")) readRDS("../fits/base_fit_marking_type.rds") else NULL
+fit_k10    <- if (file.exists("../fits/base_fit_marking_type_k10.rds")) readRDS("../fits/base_fit_marking_type_k10.rds") else NULL
+fit_tensor <- if (file.exists("../fits/tensor_fit_marking_type_k10.rds")) readRDS("../fits/tensor_fit_marking_type_k10.rds") else NULL
+fit_tensor_k4 <- if (file.exists("../fits/tensor_fit_marking_type_k4.rds")) readRDS("../fits/tensor_fit_marking_type_k4.rds") else NULL
+fit_tensor_k10_token <- if (file.exists("../fits/tensor_fit_marking_type_k10_token.rds")) readRDS("../fits/tensor_fit_marking_type_k10_token.rds") else NULL
+fit_tensor_k4_token <- if (file.exists("../fits/tensor_fit_marking_type_k4_token.rds")) readRDS("../fits/tensor_fit_marking_type_k4_token.rds") else NULL
 
 # Put them in a named list for easier iteration
-models <- list(
+models <- purrr::compact(list(
   "Base (k=4)" = fit_base,
   "Base (k=10)" = fit_k10,
   "Tensor (k=10)" = fit_tensor,
   "Tensor (k=4)" = fit_tensor_k4,
-  "Tensor (k=10) Token" = fit_tensor_k10_token
-)
+  "Tensor (k=10) Token" = fit_tensor_k10_token,
+  "Tensor (k=4) Token" = fit_tensor_k4_token
+))
+
+# Identify best-performing primary model (Model 5: Tensor Token k=10)
+fit_primary <- if (!is.null(fit_tensor_k10_token)) fit_tensor_k10_token else fit_tensor
 ```
 
 ```{r}
@@ -72,13 +77,7 @@ models <- list(
 # Warning: This step might take a few moments depending on model size.
 loo_list <- map(models, loo)
 
-comparison <- loo_compare(
-  fit_k10, 
-  fit_base,
-  fit_tensor,
-  fit_tensor_k4,
-  fit_tensor_k10_token
-  )
+comparison <- do.call(loo_compare, unname(loo_list))
 
 ```
 
@@ -89,32 +88,35 @@ print(comparison, simplify = FALSE)
 # MCMC Convergence Diagnostics
 
 ```{r mcmc-diagnostics}
-# Extract convergence diagnostics across the 5 models
-mcmc_diag_list <- map2_dfr(models, names(models), function(fit, m_name) {
-  stan_fit <- fit$fit
-  divs <- rstan::get_num_divergent(stan_fit)
-  max_td <- rstan::get_num_max_treedepth(stan_fit)
-  
-  rhats <- brms::rhat(fit)
-  max_rhat <- max(rhats, na.rm = TRUE)
-  pct_rhat_ok <- mean(rhats <= 1.01, na.rm = TRUE) * 100
-  
-  draws <- posterior::as_draws(fit)
-  d_sum <- posterior::summarise_draws(draws)
-  min_bulk <- min(d_sum$ess_bulk, na.rm = TRUE)
-  min_tail <- min(d_sum$ess_tail, na.rm = TRUE)
-  
-  data.frame(
-    Model = m_name,
-    Max_Rhat = round(max_rhat, 4),
-    Pct_Rhat_LE_1.01 = sprintf("%.1f%%", pct_rhat_ok),
-    Min_Bulk_ESS = round(min_bulk, 0),
-    Min_Tail_ESS = round(min_tail, 0),
-    Divergences = divs,
-    Max_Treedepth_Hits = max_td,
-    stringsAsFactors = FALSE
-  )
-})
+if (file.exists("../analysis/reports/mcmc_convergence.csv")) {
+  mcmc_diag_list <- read.csv("../analysis/reports/mcmc_convergence.csv")
+} else {
+  mcmc_diag_list <- map2_dfr(models, names(models), function(fit, m_name) {
+    stan_fit <- fit$fit
+    divs <- rstan::get_num_divergent(stan_fit)
+    max_td <- rstan::get_num_max_treedepth(stan_fit)
+    
+    rhats <- brms::rhat(fit)
+    max_rhat <- max(rhats, na.rm = TRUE)
+    pct_rhat_ok <- mean(rhats <= 1.01, na.rm = TRUE) * 100
+    
+    draws <- posterior::as_draws(fit)
+    d_sum <- posterior::summarise_draws(draws)
+    min_bulk <- min(d_sum$ess_bulk, na.rm = TRUE)
+    min_tail <- min(d_sum$ess_tail, na.rm = TRUE)
+    
+    data.frame(
+      Model = m_name,
+      Max_Rhat = round(max_rhat, 4),
+      Pct_Rhat_LE_1.01 = sprintf("%.1f%%", pct_rhat_ok),
+      Min_Bulk_ESS = round(min_bulk, 0),
+      Min_Tail_ESS = round(min_tail, 0),
+      Divergences = divs,
+      Max_Treedepth_Hits = max_td,
+      stringsAsFactors = FALSE
+    )
+  })
+}
 
 knitr::kable(
   mcmc_diag_list,
@@ -150,16 +152,20 @@ ggplot(all_fixed_draws, aes(x = .value, y = .variable, color = Model)) +
 ```
 
 ```{r}
-# Extract fixed effects draws for the single tensor model
-tensor_fixed_draws <- fit_tensor %>%
-  gather_draws(`^b_[^s].*`, regex = TRUE) %>% # Exclude spline terms
+# Extract fixed effects draws for the primary best-performing model (Model 5)
+tensor_fixed_draws <- fit_primary %>%
+  gather_draws(`^b_.*`, regex = TRUE) %>%
+  filter(!grepl("^b_(s|t2)date", .variable)) %>%
   mutate(
     # Rename variables to human-readable format
     .variable = case_when(
       .variable == "b_Intercept" ~ "Intercept (Unipartite Vowel Base)",
       .variable == "b_marking_typevowel_bipartite" ~ "Marking: Bipartite Vowel",
+      .variable == "b_log_token_freq" ~ "Token Frequency (Log)",
       .variable == "b_log_freq" ~ "Lemma Frequency (Log)",
+      .variable == "b_has_alt_presno" ~ "Alt. Absence: Present/Past Sg",
       .variable == "b_has_alt_presyes" ~ "Alt. Presence: Present/Past Sg",
+      .variable == "b_has_alt_pastno" ~ "Alt. Absence: Past Sg/Past Pl",
       .variable == "b_has_alt_pastyes" ~ "Alt. Presence: Past Sg/Past Pl",
       .variable == "b_log_alt_pres_freq" ~ "Alt. Type Frequency: Present (Log)",
       .variable == "b_log_alt_past_freq" ~ "Alt. Type Frequency: Past (Log)",
@@ -176,8 +182,11 @@ var_order <- c(
   "Marking: Bipartite Vowel",
   "Alt. Type Frequency: Past (Log)",
   "Alt. Type Frequency: Present (Log)",
+  "Alt. Absence: Past Sg/Past Pl",
   "Alt. Presence: Past Sg/Past Pl",
+  "Alt. Absence: Present/Past Sg",
   "Alt. Presence: Present/Past Sg",
+  "Token Frequency (Log)",
   "Lemma Frequency (Log)",
   "Intercept (Unipartite Vowel Base)"
 )
@@ -185,7 +194,7 @@ var_order <- c(
 # Apply factor levels to control plotting order
 tensor_fixed_draws <- tensor_fixed_draws %>%
   filter(!is.na(.variable)) %>%
-  mutate(.variable = factor(.variable, levels = var_order))
+  mutate(.variable = factor(.variable, levels = intersect(var_order, unique(.variable))))
 
 # Generate the plot
 ggplot(tensor_fixed_draws, aes(x = .value, y = .variable)) +
@@ -206,7 +215,6 @@ ggplot(tensor_fixed_draws, aes(x = .value, y = .variable)) +
 ggsave(
   filename = "../figures/fixed_effects.pdf", 
   plot = last_plot(),
-  #device = "pdf",
   width = 10,       # Width in inches
   height = 7,      # Height in inches
   units = "in",
@@ -217,14 +225,14 @@ ggsave(
 
 ```{r}
 # Test Paul's Principle: bipartite vowel marking has lower log-odds of leveling relative to unipartite control baseline
-hyp_paul <- hypothesis(fit_tensor, "marking_typevowel_bipartite < 0")
+hyp_paul <- hypothesis(fit_primary, "marking_typevowel_bipartite < 0")
 print(hyp_paul)
 ```
 
 ```{r plot-bipartite-contrast, fig.width=12, fig.height=8}
 # Plot the dynamic difference (contrast) between Bipartite and Unipartite marking
 p_diff <- plot_comparisons(
-  fit_tensor,
+  fit_primary,
   variables = list(marking_type = c("vowel_unipartite", "vowel_bipartite")),
   condition = c("date", "variety"),
   re_formula = NULL 
@@ -263,23 +271,33 @@ ggsave(
 And now marginal effect
 
 ```{r}
-ame_freq <- avg_comparisons(
-  fit_tensor_k10_token, 
-  variables = "log_token_freq",
-  ndraws = 1000
+if (!is.null(fit_tensor_k10_token)) {
+  ame_freq <- avg_comparisons(
+    fit_tensor_k10_token, 
+    variables = "log_token_freq",
+    ndraws = 1000
+  )
+  print(ame_freq)
+}
+```
+
+```{r}
+# Set meaningful baseline for alternation presence (both present and past alternations present)
+alt_conditions <- data.frame(
+  has_alt_pres = factor("yes", levels = c("no", "yes")),
+  has_alt_past = factor("yes", levels = c("no", "yes"))
 )
-print(ame_freq)
+
+conditional_effects(fit_base, effects = "date", conditions = alt_conditions)
+conditional_effects(fit_k10, effects = "date", conditions = alt_conditions)
+conditional_effects(fit_tensor, effects = "date", conditions = alt_conditions)
+if (!is.null(fit_tensor_k10_token)) {
+  conditional_effects(fit_tensor_k10_token, effects = "date", conditions = alt_conditions)
+}
 ```
 
 ```{r}
-conditional_effects(fit_base, effects = "date")
-conditional_effects(fit_k10, effects = "date")
-conditional_effects(fit_tensor, effects = "date")
-conditional_effects(fit_tensor_k10_token, effects = "date")
-```
-
-```{r}
-eff <- conditional_effects(fit_tensor, effects = "date")
+eff <- conditional_effects(fit_primary, effects = "date")
 
 # 2. Extract the ggplot object and add your labels
 # We use [[1]] because conditional_effects returns a list of plots
@@ -288,14 +306,13 @@ plot(eff, plot = FALSE)[[1]] +
     x = "Year", 
     y = "Probability of levelling"
   ) +
-  ylim(0, 1) +
+  scale_y_continuous(labels = scales::percent_format()) +
   theme_minimal()
 
 
 ggsave(
   filename = "../figures/date_effect.pdf", 
   plot = last_plot(),
-  #device = "pdf",
   width = 7,       # Width in inches
   height = 5,      # Height in inches
   units = "in",
@@ -307,13 +324,16 @@ ggsave(
 
 
 ```{r}
-conditional_effects(fit_base, effects = "date:marking_type")
-conditional_effects(fit_k10, effects = "date:marking_type")
-conditional_effects(fit_tensor, effects = "date:marking_type")
+conditional_effects(fit_base, effects = "date:marking_type", conditions = alt_conditions)
+conditional_effects(fit_k10, effects = "date:marking_type", conditions = alt_conditions)
+conditional_effects(fit_tensor, effects = "date:marking_type", conditions = alt_conditions)
+if (!is.null(fit_tensor_k10_token)) {
+  conditional_effects(fit_tensor_k10_token, effects = "date:marking_type")
+}
 ```
 
 ```{r}
-eff_marking <- conditional_effects(fit_tensor, effects = "date:marking_type")
+eff_marking <- conditional_effects(fit_primary, effects = "date:marking_type")
 
 # 1. Extract the data directly for more control
 plot_data <- as.data.frame(eff_marking[[1]])
@@ -328,7 +348,7 @@ ggplot(plot_data, aes(x = date, y = estimate__, color = marking_type, fill = mar
   # Add ribbons with low alpha so they don't distract
   geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2, color = NA) +
   # Add a thick line for the main trajectory
-  geom_line(size = 1.2) +
+  geom_line(linewidth = 1.2) +
   # Facet by marking type to separate the overlaps
   facet_wrap(~marking_type) +
   # Use a colorblind-friendly scale
@@ -353,7 +373,6 @@ ggplot(plot_data, aes(x = date, y = estimate__, color = marking_type, fill = mar
 ggsave(
   filename = "../figures/leveling_trajectories.pdf", 
   plot = last_plot(),
-  #device = "pdf",
   width = 9,       # Width in inches
   height = 5,      # Height in inches
   units = "in",
@@ -362,26 +381,19 @@ ggsave(
 ```
 
 ```{r}
-ce <- conditional_effects(
-  fit_tensor_k10_token, 
-  effects = "date:log_token_freq", 
-  surface = TRUE  # This generates a 2D heatmap/contour plot
-)
-
-plot(ce)
+if (!is.null(fit_tensor_k10_token)) {
+  ce <- conditional_effects(
+    fit_tensor_k10_token, 
+    effects = "date:log_token_freq", 
+    surface = TRUE  # This generates a 2D heatmap/contour plot
+  )
+  plot(ce)
+}
 ```
 
 ```{r}
 # 1. Define a consistent temporal range starting from 1050
 custom_date_range <- seq(1050, 1550, length.out = 100)
-
-# 2. Extract surface data, forcing predictions back to 1050 via int_conditions
-ce_k10  <- conditional_effects(
-  fit_tensor_k10_token, 
-  effects = "date:log_token_freq", 
-  surface = TRUE,
-  int_conditions = list(date = custom_date_range)
-)
 
 ce_base <- conditional_effects(
   fit_tensor,           
@@ -390,17 +402,26 @@ ce_base <- conditional_effects(
   int_conditions = list(date = custom_date_range)
 )
 
-# 3. Convert to data frames, standardize column names for binding, and set facet titles
-df_k10  <- ce_k10[["date:log_token_freq"]]  %>% 
-  rename(log_frequency = log_token_freq) %>% 
-  mutate(model = "Log Token Frequency")
-
 df_base <- ce_base[["date:log_freq"]]       %>% 
   rename(log_frequency = log_freq)       %>% 
   mutate(model = "Log Lemma Frequency")
 
-# 4. Combine the datasets to unify the grid space perfectly
-df_combined <- rbind(df_k10, df_base)
+if (!is.null(fit_tensor_k10_token)) {
+  # 2. Extract surface data, forcing predictions back to 1050 via int_conditions
+  ce_k10  <- conditional_effects(
+    fit_tensor_k10_token, 
+    effects = "date:log_token_freq", 
+    surface = TRUE,
+    int_conditions = list(date = custom_date_range)
+  )
+  df_k10  <- ce_k10[["date:log_token_freq"]]  %>% 
+    rename(log_frequency = log_token_freq) %>% 
+    mutate(model = "Log Token Frequency")
+  # 4. Combine the datasets to unify the grid space perfectly
+  df_combined <- rbind(df_k10, df_base)
+} else {
+  df_combined <- df_base
+}
 ```
 
 ```{r}
@@ -446,9 +467,11 @@ ggsave(
 ```
 
 ```{r}
+freq_var <- if ("log_token_freq" %in% names(fit_primary$data)) "log_token_freq" else "log_freq"
+
 plot_comparisons(
-  fit_tensor, 
-  variables = "log_freq", 
+  fit_primary, 
+  variables = freq_var, 
   condition = "date"
 )
 ```
@@ -457,15 +480,15 @@ plot_comparisons(
 ```{r}
 # Extract conditional effects for the continuous variables
 ce_freqs <- conditional_effects(
-  fit_tensor, 
-  effects = c("log_freq", "log_alt_pres_freq", "log_alt_past_freq")
+  fit_primary, 
+  effects = c(freq_var, "log_alt_pres_freq", "log_alt_past_freq")
 )
 
-# Customize the Log Frequency plot
-p_freq <- plot(ce_freqs, plot = FALSE)[["log_freq"]] +
+# Customize the Frequency plot
+p_freq <- plot(ce_freqs, plot = FALSE)[[freq_var]] +
   labs(
-    title = "Effect of Lemma Frequency",
-    x = "Log Frequency",
+    title = if (freq_var == "log_token_freq") "Effect of Token Frequency" else "Effect of Lemma Frequency",
+    x = if (freq_var == "log_token_freq") "Log Token Frequency" else "Log Frequency",
     y = "Probability of Leveling"
   ) +
   theme_minimal()
@@ -488,11 +511,6 @@ p_alt_past <- plot(ce_freqs, plot = FALSE)[["log_alt_past_freq"]] +
   ) +
   theme_minimal()
 
-# If you have the 'patchwork' or 'cowplot' package installed, you can combine them:
-# library(patchwork)
-# p_freq + p_alt_pres + p_alt_past
-
-# Otherwise, just print them sequentially:
 p_freq
 p_alt_pres
 p_alt_past
@@ -501,7 +519,7 @@ p_alt_past
 ```{r}
 # Extract the interaction between marking type and inflectional slot
 ce_interaction <- conditional_effects(
-  fit_tensor, 
+  fit_primary, 
   effects = "marking_type:std_infl"
 )
 

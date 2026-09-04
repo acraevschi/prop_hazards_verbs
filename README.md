@@ -181,7 +181,7 @@ Three decisions in this stage are worth knowing before reading any number that c
 Once the data is verified and coded:
 
 1. **Fit Bayesian GAMM Models** (`analysis/run_brms.R`):
-   - Fits 5 Bayesian Generalized Additive Mixed Models using `brms` and Stan on the **vowel-only** dataset with `vowel_unipartite` as the reference baseline ($\beta_0$).
+   - Fits 6 Bayesian Generalized Additive Mixed Models using `brms` and Stan on the **vowel-only** dataset with `vowel_unipartite` as the reference baseline ($\beta_0$).
    - Serializes and saves the fitted model objects (`.rds`) directly into the `fits/` folder, with LOO-CV attached.
    - **CLI Options**:
      ```bash
@@ -191,12 +191,12 @@ Once the data is verified and coded:
      # Fast test run (2 chains, small iterations):
      Rscript analysis/run_brms.R --test
 
-     # Full production run (4 chains, 8 total CPU threads):
-     Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 4 --threads 2 --seed 97
+     # Full production run (4 chains, 16 total CPU threads):
+     Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 4 --threads 4 --seed 97 --adapt_delta 0.99 --max_treedepth 12
      ```
 
 2. **MCMC Convergence Diagnostics** (`analysis/mcmc_convergence.R`):
-   - Audits Stan sampler health across all 5 fitted models in `fits/` to verify reliable posterior exploration.
+   - Audits Stan sampler health across all 6 fitted models in `fits/` to verify reliable posterior exploration.
    - Evaluates: $\max(\hat{R})$, percentage of parameters with $\hat{R} \le 1.01$, minimum Bulk-ESS, minimum Tail-ESS, divergent transitions, and maximum treedepth hits.
    - **Command**:
      ```bash
