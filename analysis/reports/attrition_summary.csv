@@ -1,19 +1,19 @@
 Metric Category,Metric,Value
 Lemma Attrition,Raw MHG Unique Lemmas,2945
 Lemma Attrition,Raw ENHG Unique Lemmas,1754
-Lemma Attrition,Unified Lemma Families (DSU),456
-Lemma Attrition,Normalized Lemma Families (>10 tokens),292
+Lemma Attrition,Unified Lemma Families (DSU),455
+Lemma Attrition,Normalized Lemma Families (>10 tokens),291
 Lemma Attrition,Lemmas Attested Pre-1200 (MHG),222
 Lemma Attrition,Lemmas Successfully Anchored Pre-1200,197
-Lemma Attrition,Lemmas Analyzed in Final GAMM,106
+Lemma Attrition,Lemmas Analyzed in Final GAMM,124
 Token Attrition,Raw Combined Tokens,299631
 Token Attrition,Normalized Strong Verb Tokens,150496
 Token Attrition,Past-Tense Coded Tokens,49616
-Token Attrition,Past-Tense Tokens with Baseline Anchor,48273
-Token Attrition,Past-Tense Tokens Dropped (No Baseline),1343
-Token Attrition,Final Analyzed Rows in GAMM Dataset,16931
-Leveling vs Sound Change,Transitions Explained by Sound Change Dict (Past),7425
-Leveling vs Sound Change,Transitions Explained by Sound Change Dict (Pres),1555
-Leveling vs Sound Change,Total Transitions Filtered as Sound Change,8980
-Leveling vs Sound Change,Genuine Analogical Leveling Events (has_levelled=1),332
-Leveling vs Sound Change,Leveling Resistance Observations (has_levelled=0),16599
+Token Attrition,Past-Tense Tokens with Baseline Anchor,48320
+Token Attrition,Past-Tense Tokens Dropped (No Baseline),1296
+Token Attrition,Final Analyzed Rows in GAMM Dataset,17467
+Leveling vs Sound Change,Transitions Explained by Sound Change Dict (Past),7521
+Leveling vs Sound Change,Transitions Explained by Sound Change Dict (Pres),1558
+Leveling vs Sound Change,Total Transitions Filtered as Sound Change,9079
+Leveling vs Sound Change,Genuine Analogical Leveling Events (has_levelled=1),337
+Leveling vs Sound Change,Leveling Resistance Observations (has_levelled=0),17130

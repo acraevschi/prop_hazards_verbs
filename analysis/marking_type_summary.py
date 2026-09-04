@@ -4,8 +4,8 @@ Marking-type summary, straight from data/coded_output.csv.
 
 Why this exists
 ---------------
-The marking_type counts that everybody quotes - 705/3, 1156/29, and so on - are
-computed inside analysis/run_brms.R, which also fits five Stan models and takes
+The marking_type counts that everybody quotes - 1,622/13, 884/65, and so on - are
+computed inside analysis/run_brms.R, which also fits six Stan models and takes
 about six hours. So the one table you want after every change to the coding is
 locked behind the one step you cannot afford to run, and any number reported
 without it is somebody's undocumented re-derivation.

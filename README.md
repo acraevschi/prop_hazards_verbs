@@ -34,7 +34,7 @@ prop_hazards_verbs/
 │   │   ├── enhg_mapping.json / mhg_mapping.json
 │   │   ├── etymology_matches_manual.csv     <- Curated etymological cross-links
 │   │   ├── lemma_id.csv                     <- Final discrete lemma family identifiers
-│   │   ├── unimorph_deu.tsv                 <- Cached UniMorph deu release (checksum-verified)
+│   │   ├── unimorph_deu.tsv                 <- Cached UniMorph deu release (checksum-verified; not tracked, fetched by extract_nhg_preterites.py)
 │   │   ├── unimorph_mapping.json            <- lemma -> 3sg preterite, with source variants
 │   │   ├── nhg_targets.csv                  <- Modern target forms consumed by step_3_establish_targets
 │   │   └── nhg_targets_misses.csv           <- Lemmas the source could not cover, and what was tried
@@ -51,7 +51,7 @@ prop_hazards_verbs/
 │   ├── data_for_analysis.csv                <- Reshaped dataset with predictors and marking types
 │   ├── run_brms.R                           <- Step 5: Fits Bayesian GAMMs via brms / Stan
 │   ├── analyze_models.Rmd                   <- Step 6: LOO-CV comparison, hypothesis testing, plots
-│   ├── mcmc_convergence.R                  <- MCMC convergence diagnostics table across 5 fits
+│   ├── mcmc_convergence.R                  <- MCMC convergence diagnostics table across every fit in fits/
 │   ├── attrition_diagnostics.py             <- Lemma/token attrition & sound-change filter diagnostics
 │   ├── marking_type_summary.py              <- Marking-type counts & bipartite concentration, without Stan
 │   ├── target_sensitivity.py                <- Double robustness check for late ENHG target definitions
@@ -106,7 +106,7 @@ python data/normalize_data.py
 ### Stage 3b: Modern German Target Forms
 
 The endpoint of leveling is the root the verb reached in modern German. The
-corpus cannot supply it: 46 of the 88 modelled lemmas have no past-tense token
+corpus cannot supply it: 73 of the 124 modelled lemmas have no past-tense token
 dated 1500 or later. The targets therefore come from a dictionary source.
 
 ```bash
@@ -144,13 +144,14 @@ Three decisions in this stage are worth knowing before reading any number that c
 ### Stage 5: Consonant Analysis & Data Diagnostics
 
 1. **Consonant Channel Analysis** (`analysis/consonant_analysis.py`):
-   - **Purpose**: Dedicated empirical audit and statistical comparison of the consonant channel (`consonant_bipartite`).
-   - **Key Distinctions**: Separates true morphological leveling (*Grammatischer Wechsel* / Verner's Law in *ziehen*, *verlieren*, *genesen*, *zîhen*) from phonological / orthographic variation (*Auslautverhärtung* in *scheiden*, *lîden*, *snîden*, *mîden*, *lîhen*).
+   - **Purpose**: Dedicated empirical audit of the consonant channel (`consonant_bipartite`), which the primary GAMM excludes.
+   - **Category is derived, not hand-listed**: each paradigm is labelled by the clause of the bipartite rule that admitted it, read off the same anchors `step_2_establish_baseline` used, so this report cannot drift from the rule that built its own input. Because the shape test already rejects *Auslautverhärtung* upstream, **every paradigm in this channel is grammatischer Wechsel by construction** and the devoicing category is empty. It is printed as a tripwire: a non-zero count there means the upstream rule changed, not that the language did. (*snîden*, *lîden* and *mîden* are d ~ t ~ **t** — the past plural shares the *t* — so their alternation is Class I Verner, not a spelling effect.)
+   - **Within-cell channel asymmetry**: every bipartite cell carries both a vowel row and a consonant row for the same stretch of text, so the two are a matched pair. Section 5 of the report tests **which mark gives way when only one of them does**, using the exact binomial on the discordant pairs with a lemma-clustered interval. The unpaired odds ratios in section 4 are descriptive only — they treat matched rows as independent samples and their p-values are far too small.
    - **Command**:
      ```bash
      python analysis/consonant_analysis.py
      ```
-   - **Outputs**: `analysis/reports/consonant_analysis_report.md`, `analysis/reports/consonant_summary.csv`, and `analysis/reports/consonant_lemma_breakdown.csv`.
+   - **Outputs**: `analysis/reports/consonant_analysis_report.md`, `analysis/reports/consonant_summary.csv`, `analysis/reports/consonant_lemma_breakdown.csv`, and `analysis/reports/consonant_paired_discordance.csv`.
 
 2. **Anchor & Target Attrition Diagnostics** (`analysis/attrition_diagnostics.py`):
    - **Purpose**: Audits the longitudinal data pipeline from raw texts (~1050–1650) to the final GAMM dataset.
@@ -191,7 +192,10 @@ Once the data is verified and coded:
      # Fast test run (2 chains, small iterations):
      Rscript analysis/run_brms.R --test
 
-     # Full production run (4 chains, 16 total CPU threads):
+     # Full production run (4 chains, 16 total CPU threads).
+     # This is the exact command the committed fits were made with. Note that
+     # --max_treedepth defaults to 10 in the script, so pass 12 explicitly to
+     # reproduce them; the seed only reproduces a fit under static threading.
      Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 4 --threads 4 --seed 97 --adapt_delta 0.99 --max_treedepth 12
      ```
 
@@ -291,6 +295,56 @@ into Modern German.**
 
 **Size**: 64 lemma-variety groups now receive a carried target, including
 *kiesen* (a Verner verb, 406 MHG tokens) and *heizen* (2,817 tokens).
+
+### 6. A paradigm's start state can rest on very few pre-1200 tokens
+
+`step_2_establish_baseline` takes the modal vowel and coda per lemma, variety and
+inflectional slot, with no minimum on how many tokens stand behind the mode, and
+`pd.Series.mode(x)[0]` breaks a tie on sort order. The target side records its
+support in `target_pres_n` / `target_past_n`; the anchor side records none.
+
+**Size**: 209 of 1,176 anchor cells rest on a single token, and 7 cells across 5
+lemmas are outright ties. The consequential case is *ver-lîhen*, whose Central
+German paradigm is built from three pre-1200 tokens (past singular *e*/*χ* ×1
+against *u*/*w* ×1, past plural *u*/*w* ×1) while Upper German has 14 tokens all
+reading *e*/*χ*. Central German therefore anchors on *w*, which makes the
+attested past singulars *lêch* / *verlêch* count as leveled. It supplies 3 of the
+13 vowel-bipartite events and 9 of the 65 consonant events.
+
+**This is left in place deliberately, and the reason is linguistic.** *lîhen* is
+a Class I Verner verb (OHG *līhan ~ lēh ~ liwum*), so h ~ w is its genuine
+grammatischer Wechsel and the lone *w* token is the conservative alternant, not a
+scribal error. The tie-break landed on the historically correct anchor.
+
+The verb is nevertheless bipartite in Central German and unipartite in Upper
+German, because the *w*-alternant is simply unattested in the Upper German
+pre-1200 material. That split is **not** treated as a defect to be repaired. The
+unit of the treatment variable is the paradigm as attested in a variety, not the
+verb as reconstructed: Paul's Principle is a claim about cognitive resistance, so
+the input that matters is what a speaker was exposed to. An Upper German speaker
+who never met the *w*-alternant had a unipartite paradigm, and coding it
+unipartite is correct rather than a concession to thin data. See also limitation 3.
+
+**Sensitivity**: the headline contrast is measurably sensitive to how this one
+verb is handled, and the range is reported here rather than left to be found.
+
+| Treatment of *lîhen* | Bipartite obs | Events | Bipartite rate | Unipartite rate | Ratio |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| **As coded** (bipartite CG, unipartite UG) | 1,622 | 13 | 0.80% | 2.04% | **2.55×** |
+| Bipartite in both varieties | 1,651 | 23 | 1.39% | 1.99% | 1.43× |
+| Anchors required to carry ≥ 2 agreeing tokens | 1,598 | 9 | 0.56% | 2.05% | 3.64× |
+
+### 7. The bipartite cell is small and concentrated
+
+**Size**: 12 lemmas and 13 leveling events across 1,622 observations. Five verbs
+carry every event (*lîden* 4, *ziehen* 3, *lîhen* 3, *snîden* 2, *zîhen* 1), and
+only 18 bipartite observations fall after 1500. The wide credible interval on the
+`marking_type` coefficient is the honest expression of this; run
+`python analysis/marking_type_summary.py` for the current per-lemma breakdown
+before quoting any bipartite rate. Because the priors are centred on zero and the
+likelihood here is thin, they shrink the estimate toward the null — which acts in
+the same direction as the reported conclusion, so the conclusion is stated as an
+absence of decisive evidence rather than as evidence of no effect.
 
 ---
 

@@ -171,19 +171,19 @@ This report answers a simple but fundamental question: **How and why does our da
 When studying historical language change across 600 years (Middle High German ~1050 to Early New High German ~1650), we cannot include every word blindly. A verb must have an attested starting form in early texts (pre-1200) and an attested ending form in late texts. We also have to filter out regular pronunciation changes (sound changes) so they are not mistaken for grammatical leveling.
 
 ```
-[Raw Corpora] 2,945 MHG / 1,754 ENHG Surface Lemmas (299,631 Tokens)
+[Raw Corpora] {raw_mhg_lemmas:,} MHG / {raw_enhg_lemmas:,} ENHG Surface Lemmas ({comb_tokens:,} Tokens)
       │
       ▼  (Step 1: DSU Clustering of prefixes & spelling variants)
-[Unified Lemma Families] 455 Families
+[Unified Lemma Families] {comb_lemmas:,} Families
       │
       ▼  (Step 2: Frequency thresholding: drop lemmas with <= 10 tokens)
-[Normalized Strong Lemmas] 291 Families (150,496 Tokens)
+[Normalized Strong Lemmas] {norm_lemmas:,} Families ({norm_tokens:,} Tokens)
       │
       ▼  (Step 3: Pre-1200 MHG Start-State Baseline requirement)
-[Anchored Lemma Families] 197 Families (48,273 Past Tokens)
+[Anchored Lemma Families] {anchored_lemmas_total:,} Families ({coded_anchored_tokens:,} Past Tokens)
       │
       ▼  (Step 4: Sound-Change Filtering & Alternation Eligibility)
-[Final GAMM Dataset] 88 Families (13,184 Analyzed Observations)
+[Final GAMM Dataset] {analysis_lemmas:,} Families ({analysis_tokens:,} Analyzed Observations)
 ```
 
 ---
@@ -191,15 +191,15 @@ When studying historical language change across 600 years (Middle High German ~1
 ## Conceptual & Methodological Details
 
 1. **Longitudinal Lemma & Token Attrition**:
-   - **DSU Graph Clustering (Step 1)**: In historical texts, prefixed verbs (*ansehen*, *vorsehen*, *übersehen*) and spelling variants (*sehn*, *sehen*) are widespread. We group all related variants into simplex lemma families using a Disjoint Set Union (DSU) graph algorithm, turning thousands of surface strings into 455 discrete verb families.
+   - **DSU Graph Clustering (Step 1)**: In historical texts, prefixed verbs (*ansehen*, *vorsehen*, *übersehen*) and spelling variants (*sehn*, *sehen*) are widespread. We group all related variants into simplex lemma families using a Disjoint Set Union (DSU) graph algorithm, turning thousands of surface strings into {comb_lemmas:,} discrete verb families.
    - **Frequency Filtering (Step 2)**: Verbs with 10 or fewer total occurrences across the centuries are removed to eliminate scribal hapax legomena and statistical noise.
    - **Start-State Anchoring (Step 3)**: To know if a verb "leveled" (simplified its irregular alternations), we must know its starting form before the change happened. We use Middle High German texts written prior to 1200 CE to establish this baseline anchor for each dialect region.
-   - **Modeling Eligibility (Step 4)**: Out of 197 anchored verbs, 88 possessed an active historical vowel or consonant alternation (*Ablaut* or *Grammatischer Wechsel*) that was eligible for leveling and not already resolved by regular sound change.
+   - **Modeling Eligibility (Step 4)**: Out of {anchored_lemmas_total:,} anchored verbs, {analysis_lemmas:,} possessed an active historical vowel or consonant alternation (*Ablaut* or *Grammatischer Wechsel*) that was eligible for leveling and not already resolved by regular sound change.
 
 2. **Disentangling Regular Sound Change from Analogical Leveling**:
    - Regular phonological shifts (such as diphthongization MHG *î* > ENHG *ei* in Central German, or monophthongization MHG *uo* > ENHG *u* in Upper German) happen mechanically across all words in a dialect.
    - If an observed vowel changed merely because of a dialect sound change, it would be a false positive to code it as morphological leveling.
-   - Using our sound-change dictionary (`vowel_changes.csv`), we successfully filtered **4,823 transitions** that were pure sound changes, isolating **532 genuine analogical leveling events** and **12,652 leveling resistance observations**.
+   - Using our sound-change dictionary (`vowel_changes.csv`), we successfully filtered **{total_sc_filtered:,} transitions** that were pure sound changes, isolating **{genuine_leveled:,} genuine analogical leveling events** and **{resisted_leveling:,} leveling resistance observations**.
 
 ---
 

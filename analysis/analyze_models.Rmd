@@ -77,7 +77,10 @@ fit_primary <- if (!is.null(fit_tensor_k10_token)) fit_tensor_k10_token else fit
 # Warning: This step might take a few moments depending on model size.
 loo_list <- map(models, loo)
 
-comparison <- do.call(loo_compare, unname(loo_list))
+# loo_compare() keeps the names when it is handed the *list*. The earlier
+# do.call(..., unname(loo_list)) form dropped them, so every row of the
+# comparison printed as `.x[[i]]` and the ranking could not be read off it.
+comparison <- loo_compare(loo_list)
 
 ```
 
@@ -544,7 +547,7 @@ plot(ce_interaction, plot = FALSE)[[1]] +
 ```{r}
 # Calculate Average Marginal Effects for the categorical predictors
 ame_cats <- avg_comparisons(
-  fit_k10, 
+  fit_primary, 
   variables = c("marking_type", "std_infl", "has_alt_pres", "has_alt_past"),
   ndraws = 1000 # Increase to 4000 for final publication results
 )
@@ -554,7 +557,7 @@ print(ame_cats)
 
 # Optional: Plot the marginal effects for marking_type specifically
 plot_comparisons(
-  fit_k10, 
+  fit_primary, 
   variables = "marking_type", 
   condition = "std_infl"
 ) +

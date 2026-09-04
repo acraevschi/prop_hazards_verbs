@@ -9,7 +9,7 @@ This directory contains the statistical modeling, MCMC convergence diagnostics, 
 ```
 analysis/
 ├── README.md                                <- This documentation file
-├── data_for_analysis.csv                    <- Prepared vowel-only modeling dataset (16,931 rows, 106 unique lemmas)
+├── data_for_analysis.csv                    <- Prepared vowel-only modeling dataset (17,467 rows, 124 unique lemmas)
 │
 ├── 🧠 Core Bayesian Modeling Pipeline
 │   ├── run_brms.R                           <- Fits 6 Bayesian GAMM models via brms / Stan (Option A: Vowel-Only)
@@ -17,7 +17,7 @@ analysis/
 │   └── analyze_models.html                  <- Rendered R Markdown analysis report
 │
 ├── 🔬 Consonant Channel & Mechanism Audits
-│   ├── consonant_analysis.py                <- Dedicated consonant channel analysis (GW vs Auslautverhärtung)
+│   ├── consonant_analysis.py                <- Consonant channel audit + within-cell paired channel test
 │   ├── marking_type_summary.py              <- Fast reshape & marking type breakdown straight from coded data
 │   └── check_alternation_patterns.ipynb     <- Interactive visual inspection of alternation patterns
 │
@@ -70,18 +70,19 @@ analysis/
 ### 2. Dedicated Consonant Analysis
 
 * **`consonant_analysis.py`**:
-  - **Purpose**: Standalone module and CLI tool investigating the elevated leveling rate in the consonant channel (~8.02% vs 0.86% for bipartite vowels).
-  - **Key Distinctions**:
-    - **True Morphological Leveling (*Grammatischer Wechsel* / Verner's Law)**: *r ~ s* in *verlieren*, *genesen*; *g ~ h/χ* in *ziehen*, *zîhen*.
-    - **Orthographic / Phonological Variation (*Auslautverhärtung*)**: *t ~ d* in *scheiden*, *lîden*, *snîden*; *w ~ h* in *lîhen*.
-  - **Outputs**: `reports/consonant_analysis_report.md`, `reports/consonant_summary.csv`, and `reports/consonant_lemma_breakdown.csv`.
+  - **Purpose**: Standalone module and CLI tool auditing the consonant channel, whose leveling rate (7.35%) is well above both bipartite vowels (0.80%) and unipartite vowels (2.04%).
+  - **Category is derived from the paradigm, not hand-listed**: `classify_consonant_lemma()` reads the same anchors and the same `diff_cons_*` flags, through the same clauses, that `step_2_establish_baseline` used to admit the paradigm. The two therefore cannot drift apart. Because the upstream shape test already rejects *Auslautverhärtung* (*scheiden* d ~ t ~ d), **every paradigm here is grammatischer Wechsel by construction**; the devoicing category is empty and is printed as a tripwire on the rule, not as a finding about the language.
+  - **Two designs, kept apart**:
+    - *Sections 1–4* report unpaired rates and odds ratios. These are **descriptive only** — the consonant rows and the vowel-bipartite rows are largely the same cells, so Fisher's exact test understates the uncertainty badly.
+    - *Section 5* is the design that matches the channel question: each bipartite cell contributes a vowel row and a consonant row for the same text, so they form a matched pair. The exact binomial on the discordant pairs (McNemar) asks **which mark gives way when only one does**, with a 95% interval bootstrapped over lemmas rather than cells, because the events are concentrated in a few verbs.
+  - **Outputs**: `reports/consonant_analysis_report.md`, `reports/consonant_summary.csv`, `reports/consonant_lemma_breakdown.csv`, and `reports/consonant_paired_discordance.csv`.
 
 ---
 
 ### 3. Sampler Convergence & Health Diagnostics
 
 * **`mcmc_convergence.R`**:
-  - **Purpose**: Audits Stan MCMC health across all 6 fitted models in `fits/` to guarantee reliable posterior exploration.
+  - **Purpose**: Audits Stan MCMC health across every fitted model found in `fits/` to guarantee reliable posterior exploration.
   - **Metrics**: Max $\hat{R}$, percentage of parameters with $\hat{R} \le 1.01$, minimum Bulk-ESS, minimum Tail-ESS, divergent transitions, and maximum treedepth hits.
   - **Outputs**: `reports/mcmc_convergence_table.md` and `reports/mcmc_convergence.csv`.
 
@@ -104,7 +105,7 @@ analysis/
 To reproduce the analysis and audit reports:
 
 ```bash
-# 1. Run Consonant Channel Analysis
+# 1. Run Consonant Channel Analysis (audit + paired within-cell channel test)
 python analysis/consonant_analysis.py
 
 # 2. Run Pre-Modeling Diagnostics & Double Robustness Checks
@@ -118,8 +119,9 @@ Rscript analysis/run_brms.R --dry-run
 # Fast test run:
 Rscript analysis/run_brms.R --test
 
-# Full MCMC production run (4 chains x 2 threads = 8 total CPU threads):
-Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 4 --threads 2 --seed 97
+# Full MCMC production run - this is the exact command the committed fits were made with.
+# Note that --max_treedepth defaults to 10 in the script; the fits in fits/ used 12.
+Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 4 --threads 4 --seed 97 --adapt_delta 0.99 --max_treedepth 12
 
 # 4. Generate MCMC Convergence Summary Table
 Rscript analysis/mcmc_convergence.R

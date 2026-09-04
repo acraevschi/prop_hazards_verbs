@@ -16,10 +16,10 @@ When studying historical language change across 600 years (Middle High German ~1
 [Normalized Strong Lemmas] 291 Families (150,496 Tokens)
       │
       ▼  (Step 3: Pre-1200 MHG Start-State Baseline requirement)
-[Anchored Lemma Families] 197 Families (48,273 Past Tokens)
+[Anchored Lemma Families] 197 Families (48,320 Past Tokens)
       │
       ▼  (Step 4: Sound-Change Filtering & Alternation Eligibility)
-[Final GAMM Dataset] 88 Families (13,184 Analyzed Observations)
+[Final GAMM Dataset] 124 Families (17,467 Analyzed Observations)
 ```
 
 ---
@@ -30,12 +30,12 @@ When studying historical language change across 600 years (Middle High German ~1
    - **DSU Graph Clustering (Step 1)**: In historical texts, prefixed verbs (*ansehen*, *vorsehen*, *übersehen*) and spelling variants (*sehn*, *sehen*) are widespread. We group all related variants into simplex lemma families using a Disjoint Set Union (DSU) graph algorithm, turning thousands of surface strings into 455 discrete verb families.
    - **Frequency Filtering (Step 2)**: Verbs with 10 or fewer total occurrences across the centuries are removed to eliminate scribal hapax legomena and statistical noise.
    - **Start-State Anchoring (Step 3)**: To know if a verb "leveled" (simplified its irregular alternations), we must know its starting form before the change happened. We use Middle High German texts written prior to 1200 CE to establish this baseline anchor for each dialect region.
-   - **Modeling Eligibility (Step 4)**: Out of 197 anchored verbs, 88 possessed an active historical vowel or consonant alternation (*Ablaut* or *Grammatischer Wechsel*) that was eligible for leveling and not already resolved by regular sound change.
+   - **Modeling Eligibility (Step 4)**: Out of 197 anchored verbs, 124 possessed an active historical vowel or consonant alternation (*Ablaut* or *Grammatischer Wechsel*) that was eligible for leveling and not already resolved by regular sound change.
 
 2. **Disentangling Regular Sound Change from Analogical Leveling**:
    - Regular phonological shifts (such as diphthongization MHG *î* > ENHG *ei* in Central German, or monophthongization MHG *uo* > ENHG *u* in Upper German) happen mechanically across all words in a dialect.
    - If an observed vowel changed merely because of a dialect sound change, it would be a false positive to code it as morphological leveling.
-   - Using our sound-change dictionary (`vowel_changes.csv`), we successfully filtered **4,823 transitions** that were pure sound changes, isolating **532 genuine analogical leveling events** and **12,652 leveling resistance observations**.
+   - Using our sound-change dictionary (`vowel_changes.csv`), we successfully filtered **9,079 transitions** that were pure sound changes, isolating **337 genuine analogical leveling events** and **17,130 leveling resistance observations**.
 
 ---
 
@@ -45,13 +45,13 @@ When studying historical language change across 600 years (Middle High German ~1
 | :--- | :---: | :--- |
 | **Raw MHG Corpus (ReM)** | 2,945 | Unique surface lemma strings extracted from ReM JSON |
 | **Raw ENHG Corpus (ReF)** | 1,754 | Unique surface lemma strings extracted from ReF XML |
-| **Unified Lemma Families (DSU)** | 456 | Connected components created via DWDS scraping + DSU |
-| **Normalized Lemma Families** | 292 | Retained strong verb lemmas with token count > 10 |
+| **Unified Lemma Families (DSU)** | 455 | Connected components created via DWDS scraping + DSU |
+| **Normalized Lemma Families** | 291 | Retained strong verb lemmas with token count > 10 |
 | **Lemmas Attested Pre-1200** | 222 | Lemmas attested in MHG before 1200 CE |
 | **Lemmas Successfully Anchored** | 197 | Modal vowels/codas resolved for pre-1200 baseline |
-| **Lemmas in Final GAMM Model** | 106 | Lemmas contributing valid binary outcome observations |
+| **Lemmas in Final GAMM Model** | 124 | Lemmas contributing valid binary outcome observations |
 
-> **Retention Note**: Out of 292 normalized lemma families, 197 (67.5%) were successfully anchored with pre-1200 baselines.
+> **Retention Note**: Out of 291 normalized lemma families, 197 (67.7%) were successfully anchored with pre-1200 baselines.
 
 ---
 
@@ -62,9 +62,9 @@ When studying historical language change across 600 years (Middle High German ~1
 | **Total Combined Tokens** | 299,631 | 100.0% | All extracted verbal tokens across both corpora |
 | **Normalized Strong Tokens** | 150,496 | 50.2% | Strong verbs with mapped dialects, dates & principal parts |
 | **Past Indicative Subset (Coded)** | 49,616 | 33.0% | Past Singular and Past Plural subparadigms |
-| **Tokens with Valid Baseline** | 48,273 | 97.3% | Successfully matched to pre-1200 dialect anchor |
-| **Tokens Dropped (Missing Baseline)** | 1,343 | 2.7% | Excluded due to no pre-1200 attestation in dialect |
-| **Final Analyzed Rows in GAMM** | 16,931 | 35.1% | Reshaped, non-redundant observations for brms modeling |
+| **Tokens with Valid Baseline** | 48,320 | 97.4% | Successfully matched to pre-1200 dialect anchor |
+| **Tokens Dropped (Missing Baseline)** | 1,296 | 2.6% | Excluded due to no pre-1200 attestation in dialect |
+| **Final Analyzed Rows in GAMM** | 17,467 | 36.1% | Reshaped, non-redundant observations for brms modeling |
 
 ---
 
@@ -72,25 +72,25 @@ When studying historical language change across 600 years (Middle High German ~1
 
 | Classification | Count | Description |
 | :--- | :---: | :--- |
-| **Transitions Filtered by Sound Change (Past)** | 7,425 | Past targets matching anchor via regular dialect sound change |
-| **Transitions Filtered by Sound Change (Pres)** | 1,555 | Present targets matching anchor via regular dialect sound change |
-| **Total Transitions Filtered as Sound Change** | 8,980 | Prevented from false positive leveling coding |
-| **Genuine Analogical Leveling (`has_levelled = 1`)** | 332 | Token matched target and broke from historical anchor |
-| **Preserved / Resisted Leveling (`has_levelled = 0`)** | 16,599 | Token maintained historical anchor state |
+| **Transitions Filtered by Sound Change (Past)** | 7,521 | Past targets matching anchor via regular dialect sound change |
+| **Transitions Filtered by Sound Change (Pres)** | 1,558 | Present targets matching anchor via regular dialect sound change |
+| **Total Transitions Filtered as Sound Change** | 9,079 | Prevented from false positive leveling coding |
+| **Genuine Analogical Leveling (`has_levelled = 1`)** | 337 | Token matched target and broke from historical anchor |
+| **Preserved / Resisted Leveling (`has_levelled = 0`)** | 17,130 | Token maintained historical anchor state |
 
 ### Leveling Rate by Marking Type
 
 | Marking Type | Total Observations | Leveled (1) | Resisted (0) | Leveling Rate (%) |
 | :--- | :---: | :---: | :---: | :---: |
-| `vowel_bipartite` | 1,503 | 13 | 1,490 | 0.86% |
-| `vowel_unipartite` | 15,428 | 319 | 15,109 | 2.07% |
+| `vowel_bipartite` | 1,622 | 13 | 1,609 | 0.80% |
+| `vowel_unipartite` | 15,845 | 324 | 15,521 | 2.04% |
 
 ### Leveling Rate by Macro-Variety
 
 | Variety | Total Observations | Leveled (1) | Resisted (0) | Leveling Rate (%) |
 | :--- | :---: | :---: | :---: | :---: |
-| Central German | 6,063 | 122 | 5,941 | 2.01% |
-| Upper German | 10,868 | 210 | 10,658 | 1.93% |
+| Central German | 6,284 | 125 | 6,159 | 1.99% |
+| Upper German | 11,183 | 212 | 10,971 | 1.90% |
 
 ---
 *Report generated automatically by `analysis/attrition_diagnostics.py`.*

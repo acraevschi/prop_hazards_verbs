@@ -497,7 +497,7 @@ if (cfg$model %in% c("all", "1", "base_k4")) {
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/base_fit_marking_type",
-    model_title = "[1/5] Estimating Model 1: Smooth Interaction GAMM (k=4) [Appendix Baseline]"
+    model_title = "[1/6] Estimating Model 1: Smooth Interaction GAMM (k=4) [Appendix Baseline]"
   )
 }
 
@@ -529,7 +529,7 @@ if (cfg$model %in% c("all", "2", "base_k10")) {
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/base_fit_marking_type_k10",
-    model_title = "[2/5] Estimating Model 2: Smooth Interaction GAMM (k=10)"
+    model_title = "[2/6] Estimating Model 2: Smooth Interaction GAMM (k=10)"
   )
 }
 
@@ -561,7 +561,7 @@ if (cfg$model %in% c("all", "3", "tensor_k10")) {
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/tensor_fit_marking_type_k10",
-    model_title = "[3/5] Estimating Model 3: Primary Tensor Product GAMM (k=10) [Primary Model in Paper]"
+    model_title = "[3/6] Estimating Model 3: Primary Tensor Product GAMM (k=10) [Primary Model in Paper]"
   )
 }
 
@@ -593,7 +593,7 @@ if (cfg$model %in% c("all", "4", "tensor_k4")) {
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/tensor_fit_marking_type_k4",
-    model_title = "[4/5] Estimating Model 4: Tensor Product GAMM (k=4) [Sensitivity Check on Basis Dimension]"
+    model_title = "[4/6] Estimating Model 4: Tensor Product GAMM (k=4) [Sensitivity Check on Basis Dimension]"
   )
 }
 

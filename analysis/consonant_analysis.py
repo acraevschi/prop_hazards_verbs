@@ -13,16 +13,20 @@ a dedicated analysis of the consonant channel (`consonant_bipartite`).
 Key Questions Investigated
 --------------------------
 1. Rate Discrepancy: Why is the observed leveling rate in the consonant channel
-   (~8.02%) substantially higher than bipartite vowel leveling (~0.86%) and
-   unipartite vowel leveling (~2.07%)?
+   (~7.35%) substantially higher than bipartite vowel leveling (~0.80%) and
+   unipartite vowel leveling (~2.04%)? These figures move whenever the coding
+   changes; the report recomputes them, so treat the numbers here as indicative.
 2. Which clause of the bipartite rule admitted each paradigm, read off the same
    anchors that step_2_establish_baseline used. Devoicing-shaped paradigms
    (scheiden d ~ t ~ d) are already excluded upstream, so that category is
    expected to be empty here; it is reported as a tripwire on the rule, not as
    a finding about the language.
-3. Concentration across Lemmas: Which verbs drive the consonant leveling counts,
-   and how does rate vary when orthographic coda alternations are separated from
-   genuine stem-consonant leveling?
+3. Concentration across Lemmas: Which verbs drive the consonant leveling counts?
+4. Channel Asymmetry: within a bipartite cell the vowel row and the consonant row
+   describe the same text, so they are a matched pair. When exactly one of the two
+   marks gives way, which one is it? This is tested on the discordant pairs, with
+   an interval bootstrapped over lemmas; the unpaired contrasts in section 4 of
+   the report treat those matched rows as independent and are descriptive only.
 
 Outputs
 -------
@@ -45,7 +49,7 @@ import pandas as pd
 
 # Statistical test helpers using scipy if available, or pure Python fallback
 try:
-    from scipy.stats import fisher_exact, chi2_contingency
+    from scipy.stats import fisher_exact, chi2_contingency, binomtest
     HAS_SCIPY = True
 except ImportError:
     HAS_SCIPY = False
@@ -55,6 +59,16 @@ CODED_DEFAULT = "data/coded_output.csv"
 REPORT_DEFAULT = "analysis/reports/consonant_analysis_report.md"
 SUMMARY_CSV_DEFAULT = "analysis/reports/consonant_summary.csv"
 LEMMA_CSV_DEFAULT = "analysis/reports/consonant_lemma_breakdown.csv"
+PAIRED_CSV_DEFAULT = "analysis/reports/consonant_paired_discordance.csv"
+
+# The key that identifies one observation cell. run_brms.R de-duplicates on the
+# whole predictor row, and `id` is a document id rather than a token id, so a
+# cell is one lemma in one document in one inflectional slot - not one token.
+# The vowel and the consonant row of the same cell are the same stretch of text
+# written by the same scribe, which is what makes them a matched pair.
+PAIR_KEY = ["lemma_id", "id", "date", "variety", "std_infl", "corpus"]
+PAIRED_BOOTSTRAP_DRAWS = 10000
+PAIRED_BOOTSTRAP_SEED = 97
 
 # How a consonant lemma is classified.
 #
@@ -319,11 +333,122 @@ def compute_statistical_contrasts(long_df: pd.DataFrame, lemma_df: pd.DataFrame)
     return contrasts
 
 
+def build_paired_cells(long_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Match each bipartite cell's vowel row to its consonant row.
+
+    Only bipartite paradigms have a consonant row at all, so this is the whole
+    population in which the two channels can be compared. Pairing them is not a
+    refinement of the marking_type contrast - it is a different design. The
+    bipartite-vs-unipartite contrast is between lemmas; vowel-vs-consonant is
+    within one cell, where date, scribe, document, frequency and inflectional
+    slot are identical by construction and cancel.
+    """
+    vowel = (
+        long_df[long_df["marking_type"] == "vowel_bipartite"]
+        .drop_duplicates(subset=PAIR_KEY)[PAIR_KEY + ["lemma", "has_levelled"]]
+        .rename(columns={"has_levelled": "vowel_leveled"})
+    )
+    cons = (
+        long_df[long_df["marking_type"] == "consonant_bipartite"]
+        .drop_duplicates(subset=PAIR_KEY)[PAIR_KEY + ["has_levelled"]]
+        .rename(columns={"has_levelled": "cons_leveled"})
+    )
+    return vowel.merge(cons, on=PAIR_KEY, how="inner")
+
+
+def paired_channel_test(pairs: pd.DataFrame) -> Dict:
+    """
+    Which channel gives way first, tested within the cell.
+
+    Concordant pairs carry no information about the direction of the asymmetry,
+    so the test is the exact binomial on the discordant ones - McNemar's test in
+    its exact form.
+
+    The interval is bootstrapped over lemmas, not over pairs. Events are heavily
+    concentrated (ziehen alone supplies most of them), and an interval that
+    resamples pairs would treat one verb's many cells as many independent facts.
+    Resampling lemmas asks the question that matters: would this hold on another
+    sample of verbs?
+    """
+    n = len(pairs)
+    both = int(((pairs["vowel_leveled"] == 1) & (pairs["cons_leveled"] == 1)).sum())
+    neither = int(((pairs["vowel_leveled"] == 0) & (pairs["cons_leveled"] == 0)).sum())
+    cons_only = int(((pairs["vowel_leveled"] == 0) & (pairs["cons_leveled"] == 1)).sum())
+    vowel_only = int(((pairs["vowel_leveled"] == 1) & (pairs["cons_leveled"] == 0)).sum())
+    discordant = cons_only + vowel_only
+
+    point = cons_only / discordant if discordant else float("nan")
+
+    p_value = None
+    if HAS_SCIPY and discordant:
+        p_value = binomtest(cons_only, discordant, 0.5).pvalue
+
+    # Lemma-clustered bootstrap: resample whole verbs with replacement.
+    rng = np.random.default_rng(PAIRED_BOOTSTRAP_SEED)
+    lemmas = pairs["lemma_id"].unique()
+    by_lemma = {
+        lid: (
+            int(((g["vowel_leveled"] == 0) & (g["cons_leveled"] == 1)).sum()),
+            int(((g["vowel_leveled"] == 1) & (g["cons_leveled"] == 0)).sum()),
+        )
+        for lid, g in pairs.groupby("lemma_id")
+    }
+    draws = []
+    for _ in range(PAIRED_BOOTSTRAP_DRAWS):
+        picked = rng.choice(lemmas, size=len(lemmas), replace=True)
+        c = sum(by_lemma[l][0] for l in picked)
+        v = sum(by_lemma[l][1] for l in picked)
+        if c + v:
+            draws.append(c / (c + v))
+    draws = np.array(draws)
+
+    return {
+        "n_pairs": n,
+        "n_lemmas": int(pairs["lemma_id"].nunique()),
+        "both": both,
+        "neither": neither,
+        "cons_only": cons_only,
+        "vowel_only": vowel_only,
+        "discordant": discordant,
+        "point_pct": 100.0 * point,
+        "p_value": p_value,
+        "ci_lower_pct": 100.0 * float(np.quantile(draws, 0.025)) if len(draws) else None,
+        "ci_upper_pct": 100.0 * float(np.quantile(draws, 0.975)) if len(draws) else None,
+        "share_reversed_pct": 100.0 * float((draws < 0.5).mean()) if len(draws) else None,
+        "draws_used": int(len(draws)),
+    }
+
+
+def paired_lemma_breakdown(pairs: pd.DataFrame) -> pd.DataFrame:
+    """Per-verb discordance, so the reader can see how concentrated the result is."""
+    rows = []
+    for lid, g in pairs.groupby("lemma_id"):
+        cons_only = int(((g["vowel_leveled"] == 0) & (g["cons_leveled"] == 1)).sum())
+        vowel_only = int(((g["vowel_leveled"] == 1) & (g["cons_leveled"] == 0)).sum())
+        rows.append({
+            "lemma_id": lid,
+            "lemma": g["lemma"].iloc[0],
+            "paired_cells": len(g),
+            "cons_only": cons_only,
+            "vowel_only": vowel_only,
+            "discordant": cons_only + vowel_only,
+        })
+    out = pd.DataFrame(rows).sort_values("discordant", ascending=False)
+    total = out["discordant"].sum()
+    out["share_of_discordant_pct"] = (
+        (100.0 * out["discordant"] / total).round(1) if total else 0.0
+    )
+    return out
+
+
 def generate_markdown_report(
     rates_df: pd.DataFrame,
     lemma_df: pd.DataFrame,
     mech_df: pd.DataFrame,
     contrasts: Dict[str, Dict],
+    paired: Dict,
+    paired_df: pd.DataFrame,
     output_path: str = REPORT_DEFAULT
 ) -> None:
     """Generates the comprehensive Markdown report on the consonant channel."""
@@ -372,6 +497,13 @@ def generate_markdown_report(
         if len(top_morph) > 0 else "None"
     )
     lines.append(f"3. **High Concentration**: The largest contributor is {top_morph_str}.")
+    lines.append(
+        f"4. **Within the cell, the consonant gives way first**: on the {paired['n_pairs']:,} cells where both "
+        f"channels are informative, exactly one mark gives way in {paired['discordant']} of them, and it is the "
+        f"consonant in **{paired['point_pct']:.1f}%** of those "
+        f"(lemma-clustered 95% CI {paired['ci_lower_pct']:.1f}%-{paired['ci_upper_pct']:.1f}%). "
+        "This is the comparison the channel question actually asks, and it is reported in section 5."
+    )
     lines.append("")
 
     lines.append("## 1. Overall Marking Type Leveling Rates")
@@ -398,7 +530,17 @@ def generate_markdown_report(
         lines.append(f"| {r['lemma_id']} | *{r['lemma']}* | `{r['alternation']}` | {r['category']} | {int(r['observations']):,} | {int(r['leveled']):,} | {r['rate_pct']:.2f}% | {r['share_of_cons_events']:.1f}% |")
     lines.append("")
 
-    lines.append("## 4. Statistical Contrast Analysis")
+    lines.append("## 4. Statistical Contrast Analysis (Unpaired - Descriptive Only)")
+    lines.append("")
+    lines.append(
+        "> **Read these as descriptive rates, not as tests.** The consonant rows and the vowel-bipartite rows "
+        f"are not independent samples: {paired['n_pairs']:,} of them are the *same cells*, each contributing one "
+        "row to each channel. Fisher's exact test assumes independence, so the p-values below are far smaller "
+        "than the evidence warrants, and the events are concentrated in a handful of verbs besides. "
+        "The consonant-vs-vowel comparison is tested properly in section 5, which uses the pairing instead of "
+        "ignoring it. The `Vowel Unipartite` row is a between-lemma contrast and is reported for scale only; "
+        "the modelled version of that contrast is the GAMM in `analysis/run_brms.R`."
+    )
     lines.append("")
     lines.append("| Comparison | Group 1 Rate | Group 2 Rate | Odds Ratio | 95% Confidence Interval | p-value (Fisher) |")
     lines.append("| :--- | :---: | :---: | :---: | :---: | :---: |")
@@ -411,17 +553,81 @@ def generate_markdown_report(
         lines.append(f"| {c['group1']} vs. {c['group2']} | {c['g1_rate_pct']:.2f}% | {c['g2_rate_pct']:.2f}% | {c['odds_ratio']:.2f} | [{c['ci_95'][0]}, {c['ci_95'][1]}] | {p_str} |")
     lines.append("")
 
-    lines.append("## 5. Methodological & Theoretical Implications")
+    lines.append("## 5. Within-Cell Channel Asymmetry (Paired Design)")
     lines.append("")
     lines.append(
-        "1. **Justification for Option A (Vowel-Only Primary Model)**:\n"
-        "   - Combining consonant marking with vowel marking into a single treatment factor introduces substantial noise because consonant leveling is heavily confounded by orthographic spelling shifts (*Auslautverhärtung* in *scheiden* and *lîden*).\n"
-        "   - By separating the consonant channel into this dedicated analysis and estimating a pure vowel-only GAMM, the test of Paul's Principle tests morphological Ablaut resistance against an unambiguous unipartite control baseline."
+        "Sections 1-4 compare channels as if they were separate samples. They are not. Every bipartite cell "
+        "carries a vowel row and a consonant row describing the same stretch of text, so the two are a matched "
+        "pair: same verb, same document, same date, same scribe, same inflectional slot, same frequency. "
+        "Everything the GAMM spends its covariates controlling for cancels by construction here. "
+        "The question this design answers is not *how much* each channel levels, but **which mark gives way "
+        "when only one of them does**."
+    )
+    lines.append("")
+    lines.append(f"Matched cells: **{paired['n_pairs']:,}** across **{paired['n_lemmas']}** bipartite verbs.")
+    lines.append("")
+    lines.append("| | Consonant resisted | Consonant leveled |")
+    lines.append("| :--- | :---: | :---: |")
+    lines.append(f"| **Vowel resisted** | {paired['neither']:,} | {paired['cons_only']} |")
+    lines.append(f"| **Vowel leveled** | {paired['vowel_only']} | {paired['both']} |")
+    lines.append("")
+    lines.append(
+        "Concordant cells (both marks resisted, or both gave way) carry no information about direction, so the "
+        f"test is the exact binomial on the **{paired['discordant']} discordant** cells - McNemar's test in its "
+        "exact form."
+    )
+    lines.append("")
+    p_str = f"{paired['p_value']:.2e}" if paired.get("p_value") is not None else "N/A (scipy unavailable)"
+    lines.append("| Quantity | Value |")
+    lines.append("| :--- | :--- |")
+    lines.append(f"| Discordant cells | {paired['discordant']} |")
+    lines.append(f"| Consonant gave way | {paired['cons_only']} |")
+    lines.append(f"| Vowel gave way | {paired['vowel_only']} |")
+    lines.append(f"| P(the mark that gives way is the consonant) | **{paired['point_pct']:.1f}%** |")
+    lines.append(f"| Exact binomial p (vs 50%) | {p_str} |")
+    lines.append(
+        f"| Lemma-clustered 95% CI | ({paired['ci_lower_pct']:.1f}%, {paired['ci_upper_pct']:.1f}%) |"
+    )
+    lines.append(f"| Bootstrap draws reversing the direction | {paired['share_reversed_pct']:.1f}% |")
+    lines.append("")
+    lines.append(
+        "The interval resamples **verbs**, not cells. The events are concentrated, and an interval built by "
+        "resampling cells would count one verb's many documents as many independent facts. The clustered "
+        "interval is therefore much wider than the exact p-value suggests, and it is the one to quote."
+    )
+    lines.append("")
+    lines.append("### 5.1 Where the discordant cells come from")
+    lines.append("")
+    lines.append("| Lemma ID | Lemma | Paired Cells | Consonant Only | Vowel Only | Discordant | Share (%) |")
+    lines.append("| :---: | :--- | :---: | :---: | :---: | :---: | :---: |")
+    for _, r in paired_df.iterrows():
+        lines.append(
+            f"| {r['lemma_id']} | *{r['lemma']}* | {int(r['paired_cells']):,} | {int(r['cons_only'])} | "
+            f"{int(r['vowel_only'])} | {int(r['discordant'])} | {r['share_of_discordant_pct']:.1f}% |"
+        )
+    lines.append("")
+    lines.append("### 5.2 What this does and does not support")
+    lines.append("")
+    lines.append(
+        "1. **It refines Paul rather than contradicting him.** Paul's argument is that two marks reinforce each "
+        "other. If one of them erodes several times faster than the other, the bipartite state is transient and "
+        "asymmetric: the grammatischer Wechsel is the weak link, and bipartite marking is a way-station rather "
+        "than a stable configuration."
     )
     lines.append(
-        "2. **Grammatischer Wechsel Trajectory**:\n"
-        "   - True Grammatischer Wechsel verbs (*ziehen*, *verlieren*, *genesen*, *zîhen*) undergo progressive analogical leveling across the MHG-to-ENHG transition as the plural/participle voiced consonants generalize into the singular preterite.\n"
-        "   - This confirms that consonantal stem alternations operate under distinct phonetic and morphosyntactic pressures compared to vowel ablaut grades."
+        "2. **It is a separate result from the GAMM, with a separate design.** The bipartite-vs-unipartite "
+        "contrast is between lemmas and rests on few verbs. This one is within the cell. Neither is a robustness "
+        "check on the other, and they should be reported as two findings, not one."
+    )
+    lines.append(
+        "3. **It is concentrated.** Read section 5.1 before quoting the percentage. The clustered interval "
+        "already reflects that concentration; the point estimate does not."
+    )
+    lines.append(
+        "4. **It does not license adding the consonant channel to `marking_type` as a third level.** Unipartite "
+        "verbs have no consonant rows by construction, so that level would have no comparison group; the paired "
+        "rows would enter the GAMM as if independent; and one random-effect structure cannot serve a "
+        "between-lemma and a within-cell contrast at once. That is why `run_brms.R` fits the vowel channel only."
     )
     lines.append("")
 
@@ -437,6 +643,8 @@ def main():
     parser.add_argument("--out-report", default=REPORT_DEFAULT, help="Path to output markdown report")
     parser.add_argument("--out-summary", default=SUMMARY_CSV_DEFAULT, help="Path to output summary CSV")
     parser.add_argument("--out-lemmas", default=LEMMA_CSV_DEFAULT, help="Path to output per-lemma CSV")
+    parser.add_argument("--out-paired", default=PAIRED_CSV_DEFAULT,
+                        help="Path to output per-lemma paired discordance CSV")
     args = parser.parse_args()
 
     print(f"Loading data from {args.coded}...")
@@ -446,12 +654,24 @@ def main():
     lemma_df = analyze_consonant_lemmas(long_df, raw_df)
     mech_df = compute_mechanism_summary(lemma_df)
     contrasts = compute_statistical_contrasts(long_df, lemma_df)
+    pairs = build_paired_cells(long_df)
+    paired = paired_channel_test(pairs)
+    paired_df = paired_lemma_breakdown(pairs)
 
     print("\n--- Marking Type Leveling Rates ---")
     print(rates_df.to_string(index=False))
 
     print("\n--- Mechanism Summary (by admitting clause) ---")
     print(mech_df.to_string(index=False))
+
+    print("\n--- Within-Cell Channel Asymmetry (paired) ---")
+    print(f"  matched cells      {paired['n_pairs']:,} across {paired['n_lemmas']} verbs")
+    print(f"  discordant         {paired['discordant']}  (consonant {paired['cons_only']}, vowel {paired['vowel_only']})")
+    print(f"  P(consonant first) {paired['point_pct']:.1f}%  "
+          f"lemma-clustered 95% CI ({paired['ci_lower_pct']:.1f}%, {paired['ci_upper_pct']:.1f}%)")
+    if paired["p_value"] is not None:
+        print(f"  exact binomial p   {paired['p_value']:.3e}")
+    print(paired_df.to_string(index=False))
 
     print("\n--- Consonant Lemmas Breakdown ---")
     print(lemma_df[["lemma_id", "lemma", "category", "observations", "leveled", "rate_pct", "share_of_cons_events"]].to_string(index=False))
@@ -464,8 +684,11 @@ def main():
     lemma_df.to_csv(args.out_lemmas, index=False)
     print(f"Wrote lemma breakdown CSV to: {args.out_lemmas}")
 
+    paired_df.to_csv(args.out_paired, index=False)
+    print(f"Wrote paired discordance CSV to: {args.out_paired}")
+
     # Generate Markdown report
-    generate_markdown_report(rates_df, lemma_df, mech_df, contrasts, args.out_report)
+    generate_markdown_report(rates_df, lemma_df, mech_df, contrasts, paired, paired_df, args.out_report)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from analysis.marking_type_summary import reshape
 from analysis.consonant_analysis import (
     load_and_reshape,
+    build_paired_cells,
+    paired_channel_test,
+    paired_lemma_breakdown,
     analyze_marking_rates,
     analyze_consonant_lemmas,
     compute_mechanism_summary,
@@ -108,6 +111,63 @@ class TestConsonantAnalysis(unittest.TestCase):
     def test_statistical_contrast_odds_ratio(self):
         or_cons_vs_vowel_bi = self.contrasts["Cons_All_vs_Vowel_Bi"]["odds_ratio"]
         self.assertGreater(or_cons_vs_vowel_bi, 5.0)
+
+
+class TestPairedChannelAsymmetry(unittest.TestCase):
+    """
+    Verifies the within-cell design: the vowel and the consonant row of one
+    bipartite cell are a matched pair, and the channel question is answered on
+    the discordant pairs rather than by comparing the two channels as if they
+    were independent samples.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        coded = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/coded_output.csv"))
+        cls.long_df, _ = load_and_reshape(coded)
+        cls.pairs = build_paired_cells(cls.long_df)
+        cls.result = paired_channel_test(cls.pairs)
+        cls.breakdown = paired_lemma_breakdown(cls.pairs)
+
+    def test_pairs_are_a_subset_of_both_channels(self):
+        # Every paired cell must exist on both sides. Only bipartite paradigms
+        # have a consonant row, so the pairing cannot exceed either channel.
+        n_vowel_bi = len(self.long_df[self.long_df["marking_type"] == "vowel_bipartite"])
+        n_cons_bi = len(self.long_df[self.long_df["marking_type"] == "consonant_bipartite"])
+        self.assertGreater(len(self.pairs), 0)
+        self.assertLessEqual(len(self.pairs), n_cons_bi)
+        self.assertLessEqual(len(self.pairs), n_vowel_bi)
+
+    def test_pairing_is_one_to_one(self):
+        # A cell must not match twice, or the discordance counts would inflate.
+        self.assertEqual(len(self.pairs), len(self.pairs.drop_duplicates()))
+
+    def test_contingency_table_is_complete(self):
+        r = self.result
+        self.assertEqual(
+            r["both"] + r["neither"] + r["cons_only"] + r["vowel_only"], r["n_pairs"]
+        )
+        self.assertEqual(r["discordant"], r["cons_only"] + r["vowel_only"])
+
+    def test_consonant_gives_way_more_often(self):
+        r = self.result
+        self.assertGreater(r["cons_only"], r["vowel_only"])
+        self.assertGreater(r["point_pct"], 50.0)
+
+    def test_clustered_interval_is_wider_than_the_point(self):
+        # The whole reason the interval is bootstrapped over lemmas is that the
+        # events are concentrated. It must bracket the point estimate and be
+        # visibly wide - an interval as tight as the exact p-value would mean
+        # the clustering was not applied.
+        r = self.result
+        self.assertLessEqual(r["ci_lower_pct"], r["point_pct"])
+        self.assertGreaterEqual(r["ci_upper_pct"], r["point_pct"])
+        self.assertGreater(r["ci_upper_pct"] - r["ci_lower_pct"], 5.0)
+
+    def test_breakdown_accounts_for_every_discordant_pair(self):
+        self.assertEqual(int(self.breakdown["discordant"].sum()), self.result["discordant"])
+        self.assertEqual(int(self.breakdown["cons_only"].sum()), self.result["cons_only"])
+        self.assertEqual(int(self.breakdown["vowel_only"].sum()), self.result["vowel_only"])
 
 
 if __name__ == "__main__":

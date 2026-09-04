@@ -2,7 +2,7 @@
 # ==============================================================================
 # MCMC Convergence Diagnostics Summary
 # ==============================================================================
-# Summarizes sampler health across the 5 fitted models in fits/:
+# Summarizes sampler health across every fitted model found in fits/:
 # - R-hat (Max R-hat and % <= 1.01)
 # - Minimum Bulk-ESS
 # - Minimum Tail-ESS
@@ -139,7 +139,8 @@ build_interpretation <- function(df, pct_rhat, draws) {
 # Generate Markdown table
 md_content <- paste0(
   "# MCMC Convergence Diagnostics Summary Table\n\n",
-  "Table of sampler health metrics across the 5 fitted Bayesian GAMM models in `fits/`:\n\n",
+  sprintf("Table of sampler health metrics across the %d fitted Bayesian GAMM models in `fits/`:\n\n",
+          nrow(res_df)),
   # kable() returns one element per line. Collapse it, or paste0() recycles the
   # surrounding text across every row. row.names = FALSE drops the duplicate
   # Model column that rbind() puts in the row names.

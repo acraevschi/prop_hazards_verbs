@@ -1,6 +1,6 @@
 # MCMC Convergence Diagnostics Summary Table
 
-Table of sampler health metrics across the 5 fitted Bayesian GAMM models in `fits/`:
+Table of sampler health metrics across the 6 fitted Bayesian GAMM models in `fits/`:
 
 |Model                            | Max $\hat{R}$|$\hat{R} \le 1.01$ (%) | Min Bulk-ESS| Min Tail-ESS| Divergences| Max Treedepth Hits|
 |:--------------------------------|-------------:|:----------------------|------------:|------------:|-----------:|------------------:|
