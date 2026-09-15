@@ -5,3 +5,10 @@ In case of MHG, we produce the linking by stripping prefixes and suffixes provid
 After that, we iterate over the list of base lemmas from ENHG and request a corresponding page from DWDS. From this page, we extract the description of the etymology, which includes the Middle High German form. Using Levenshtein distances, we generate a list of length `N_CANDS` of similar words and feed all of that, i.e., ENHG lemma, its etymological description and a set of candidate forms and ask it to match ENHG lemma with one from our MHG list of forms.
 
 LLM provided with context works well for many forms however it's not always perfect, so we manually checked the output and corrected some of the mappings. The final cleaned version is in `etymology_matches_cleaned.csv`. Note that verbs were removed, as they were incorrectly coded as strong/irregular verbs in the MHG corpus, while we are only interested in the non-weak verbs.
+
+`enhg_mhg_mapping.py` keeps the graph node's language in the emitted mapping.
+Consequently, `lemma_id.csv` is keyed by `(corpus, lemma)`, not by the surface
+lemma alone. This matters for spellings that occur independently in both the
+ENHG and MHG inventories. Corpus joins are validated as many-to-one, report
+mapped and unmapped counts separately, and retain unmatched source tokens in
+`combined_corpus.csv` with a missing `lemma_id` until normalization.

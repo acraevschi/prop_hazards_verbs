@@ -272,7 +272,9 @@ def main():
     )
 
     with open(OUT, "w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
+        writer = csv.DictWriter(
+            handle, fieldnames=list(rows[0].keys()), lineterminator="\n"
+        )
         writer.writeheader()
         writer.writerows(rows)
 
@@ -281,6 +283,7 @@ def main():
         writer = csv.DictWriter(
             handle,
             fieldnames=["lemma_id", "lemma", "in_model", "nhg_infinitive", "reason", "spellings_tried"],
+            lineterminator="\n",
         )
         writer.writeheader()
         writer.writerows(misses)

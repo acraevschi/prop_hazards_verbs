@@ -182,18 +182,41 @@ def write_output(
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     rows = [
-        {"lemma": lemma, "lemma_id": node_to_id[(lang, lemma)]}
+        {"corpus": lang, "lemma": lemma, "lemma_id": node_to_id[(lang, lemma)]}
         for (lang, lemma) in node_to_id.keys()
     ]
     # Deterministic sorting for readability
     if sort_by == "lemma_id":
-        rows.sort(key=lambda r: (int(r["lemma_id"]), r["lemma"]))
+        rows.sort(key=lambda r: (int(r["lemma_id"]), r["corpus"], r["lemma"]))
     else:
-        rows.sort(key=lambda r: (r["lemma"], int(r["lemma_id"])))
+        rows.sort(key=lambda r: (r["lemma"], r["corpus"], int(r["lemma_id"])))
     with out_path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["lemma", "lemma_id"])
+        writer = csv.DictWriter(
+            f, fieldnames=["corpus", "lemma", "lemma_id"], lineterminator="\n"
+        )
         writer.writeheader()
         writer.writerows(rows)
+
+
+def validate_lemma_mapping(lemma_id_map: pd.DataFrame) -> None:
+    """Require one family assignment for each language-specific lemma node."""
+    key = ["corpus", "lemma"]
+    missing = set(key + ["lemma_id"]) - set(lemma_id_map.columns)
+    if missing:
+        raise ValueError(
+            "Lemma mapping is missing required columns: " + ", ".join(sorted(missing))
+        )
+
+    duplicates = lemma_id_map[lemma_id_map.duplicated(key, keep=False)]
+    if not duplicates.empty:
+        examples = duplicates[key].drop_duplicates().head(5).to_dict("records")
+        raise ValueError(
+            f"Lemma mapping key {key} is not unique; examples: {examples}"
+        )
+
+    assignments = lemma_id_map.groupby(key, dropna=False)["lemma_id"].nunique()
+    if (assignments > 1).any():
+        raise ValueError("A language-specific lemma maps to multiple lemma_id values")
 
 
 def combine_corpus_data(
@@ -214,18 +237,57 @@ def combine_corpus_data(
     Returns:
         pd.DataFrame of combined corpus data
     """
-    enhg = pd.read_csv(enhg_path)
-    mhg = pd.read_csv(mhg_path)
+    enhg = pd.read_csv(enhg_path, low_memory=False)
+    mhg = pd.read_csv(mhg_path, low_memory=False)
     lemma_id_map = pd.read_csv(lemma_id_path)
+    validate_lemma_mapping(lemma_id_map)
 
     enhg["corpus"] = "ENHG"
     mhg["corpus"] = "MHG"
 
-    data = pd.concat([mhg, enhg], ignore_index=True)
+    joined = []
+    join_report = {}
+    for corpus_name, corpus_data in (("MHG", mhg), ("ENHG", enhg)):
+        before = len(corpus_data)
+        corpus_joined = corpus_data.merge(
+            lemma_id_map,
+            on=["corpus", "lemma"],
+            how="left",
+            validate="many_to_one",
+            indicator=True,
+        )
+        after = len(corpus_joined)
+        if after != before:
+            raise ValueError(
+                f"{corpus_name} lemma join changed row count from {before} to {after}"
+            )
+        mapped = int((corpus_joined["_merge"] == "both").sum())
+        unmapped = before - mapped
+        join_report[corpus_name] = {
+            "before": before,
+            "after": after,
+            "mapped": mapped,
+            "unmapped": unmapped,
+        }
+        print(
+            f"{corpus_name} lemma join: {before:,} -> {after:,} rows; "
+            f"{mapped:,} mapped, {unmapped:,} unmapped"
+        )
+        joined.append(corpus_joined.drop(columns="_merge"))
 
-    data = data.merge(lemma_id_map, on="lemma", how="left")
-    data.dropna(subset=["lemma_id"], inplace=True)
-    data["lemma_id"] = data["lemma_id"].astype(int)
+    data = pd.concat(joined, ignore_index=True)
+    data["lemma_id"] = data["lemma_id"].astype("Int64")
+
+    if "observation_id" in data.columns:
+        if data["observation_id"].isna().any():
+            raise ValueError("Corpus rows must all have an observation_id")
+        if data["observation_id"].duplicated().any():
+            raise ValueError("observation_id must be unique across the combined corpora")
+        assignments = data.groupby("observation_id")["lemma_id"].nunique()
+        if (assignments > 1).any():
+            raise ValueError("A corpus token was assigned to multiple lemma_id values")
+
+    data.attrs["join_report"] = join_report
 
     if output_path:
         data.to_csv(output_path, index=False)
@@ -259,7 +321,7 @@ def main():
         "--out",
         type=Path,
         default=Path("data/lemmas/lemma_id.csv"),
-        help="Output CSV path (lemma,lemma_id)",
+        help="Output CSV path (corpus,lemma,lemma_id)",
     )
     ap.add_argument(
         "--enhg_path",

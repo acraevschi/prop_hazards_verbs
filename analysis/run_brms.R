@@ -20,6 +20,7 @@
 #   --overwrite, -o        Refit models that already exist in fits/ [default: FALSE]
 #   --test                 Quick test run with small iterations/chains [default: FALSE]
 #   --dry-run              Validate stancode & data without MCMC sampling [default: FALSE]
+#   --prepare-only          Write token-level model data and exit before Stan [default: FALSE]
 #   -h, --help             Show help message and exit
 #
 # Reproducibility: the seed fixes the results only because within-chain threading
@@ -58,6 +59,7 @@ CLI_DEFAULTS <- list(
   overwrite = FALSE,
   test = FALSE,
   dry_run = FALSE,
+  prepare_only = FALSE,
   model = "all"
 )
 
@@ -65,7 +67,7 @@ CLI_TYPES <- c(
   chains = "int", iter = "int", warmup = "int", cores = "int",
   threads = "int", seed = "int", adapt_delta = "num",
   max_treedepth = "int", backend = "str", overwrite = "flag",
-  test = "flag", dry_run = "flag", model = "str"
+  test = "flag", dry_run = "flag", prepare_only = "flag", model = "str"
 )
 
 print_cli_help <- function() {
@@ -83,6 +85,7 @@ print_cli_help <- function() {
   cat("  --overwrite, -o        Refit models that already exist in fits/ [default: FALSE]\n")
   cat("  --test                 Quick test run with small iterations/chains [default: FALSE]\n")
   cat("  --dry-run              Validate formulas & Stan code without sampling [default: FALSE]\n")
+  cat("  --prepare-only          Write model data and exit before Stan [default: FALSE]\n")
   cat("  --model <str>          Which model to fit (1-6, or all) [default: all]\n")
   cat("  -h, --help             Show this help message and exit\n\n")
   cat("Booleans accept true/false, yes/no, and 1/0. You can also write\n")
@@ -231,10 +234,11 @@ cat(sprintf(" - Parallel chains: %d | Threads/Chain: %d | Total CPUs: %d | Backe
             min(cfg$chains, cfg$cores), cfg$threads,
             min(cfg$chains, cfg$cores) * cfg$threads, cfg$backend))
 cat(sprintf(" - adapt_delta: %.3f | max_treedepth: %d\n", cfg$adapt_delta, cfg$max_treedepth))
-cat(sprintf(" - Overwrite existing fits: %s | Test mode: %s | Dry-run: %s\n",
+cat(sprintf(" - Overwrite existing fits: %s | Test mode: %s | Dry-run: %s | Prepare-only: %s\n",
             if (cfg$overwrite) "TRUE (--overwrite)" else "FALSE (skip existing)",
             if (cfg$test) "TRUE" else "FALSE",
-            if (cfg$dry_run) "TRUE" else "FALSE"))
+            if (cfg$dry_run) "TRUE" else "FALSE",
+            if (cfg$prepare_only) "TRUE" else "FALSE"))
 cat("==============================================================================\n\n")
 
 suppressPackageStartupMessages({
@@ -262,6 +266,25 @@ if (cfg$backend == "cmdstanr") {
 # ------------------------------------------------------------------------------
 cat("Loading coded historical data from data/coded_output.csv...\n")
 raw_data <- read.csv("data/coded_output.csv", stringsAsFactors = FALSE)
+
+# Identity is deliberately split: document_id supplies the document/scribe
+# random effect, while observation_id identifies one corpus token. Local
+# token_id values may recur in different documents and are retained for audit.
+identity_cols <- c("document_id", "token_id", "observation_id")
+missing_identity <- setdiff(identity_cols, names(raw_data))
+if (length(missing_identity) > 0) {
+  stop(sprintf("coded_output.csv is missing identity columns: %s",
+               paste(missing_identity, collapse = ", ")), call. = FALSE)
+}
+if (anyNA(raw_data[, identity_cols])) {
+  stop("coded_output.csv contains missing document or token identities", call. = FALSE)
+}
+duplicate_observations <- raw_data %>%
+  count(observation_id) %>%
+  filter(n > 1)
+if (nrow(duplicate_observations) > 0) {
+  stop("coded_output.csv contains repeated observation_id values", call. = FALSE)
+}
 
 # Create a lookup for a representative surface lemma (shortest string) per lemma_id
 lemma_lookup <- raw_data %>%
@@ -368,7 +391,7 @@ model_data <- base_model_data %>%
     variety = as.factor(variety),
     corpus = as.factor(corpus),
     lemma_std = as.factor(lemma_id),
-    id = as.factor(id),
+    document_id = as.factor(document_id),
     std_infl = as.factor(std_infl)
   ) %>%
   select(
@@ -376,14 +399,21 @@ model_data <- base_model_data %>%
     has_alt_pres, log_alt_pres_freq,
     has_alt_past, log_alt_past_freq,
     marking_type, is_bipartite, element_type, has_levelled,
-    id, variety, std_infl, corpus
+    document_id, token_id, observation_id, variety, std_infl, corpus
   )
 
-model_data <- unique(model_data)
+if (anyDuplicated(model_data$observation_id)) {
+  stop("A source token produced multiple vowel modeling rows", call. = FALSE)
+}
 cat(sprintf("Prepared %d vowel-only modeling observations across %d unique lemmas.\n", nrow(model_data), n_distinct(model_data$lemma_std)))
 
 # Save prepared analysis dataset
 write.csv(model_data, "analysis/data_for_analysis.csv", row.names = FALSE)
+
+if (cfg$prepare_only) {
+  cat("Preparation complete; exiting before model construction or sampling.\n")
+  quit(status = 0)
+}
 
 # ------------------------------------------------------------------------------
 # 3. Priors & Shared MCMC Sampler Settings
@@ -485,7 +515,7 @@ if (cfg$model %in% c("all", "1", "base_k4")) {
       std_infl * marking_type +
       (1 | variety) + s(date, by = variety, k = 4) +
       (1 | lemma_std) +
-      (1 | id),
+      (1 | document_id),
     family = bernoulli()
   )
 
@@ -517,7 +547,7 @@ if (cfg$model %in% c("all", "2", "base_k10")) {
       std_infl * marking_type +
       (1 | variety) + s(date, by = variety, k = 10) +
       (1 | lemma_std) +
-      (1 | id),
+      (1 | document_id),
     family = bernoulli()
   )
 
@@ -549,7 +579,7 @@ if (cfg$model %in% c("all", "3", "tensor_k10")) {
       std_infl * marking_type +
       (1 | variety) + s(date, by = variety, k = 10) +
       (1 | lemma_std) +
-      (1 | id),
+      (1 | document_id),
     family = bernoulli()
   )
 
@@ -581,7 +611,7 @@ if (cfg$model %in% c("all", "4", "tensor_k4")) {
       std_infl * marking_type +
       (1 | variety) + s(date, by = variety, k = 4) +
       (1 | lemma_std) +
-      (1 | id),
+      (1 | document_id),
     family = bernoulli()
   )
 
@@ -613,7 +643,7 @@ if (cfg$model %in% c("all", "5", "tensor_token", "token", "tensor_token_k10", "t
       std_infl * marking_type +
       (1 | variety) + s(date, by = variety, k = 10) +
       (1 | lemma_std) +
-      (1 | id),
+      (1 | document_id),
     family = bernoulli()
   )
 
@@ -645,7 +675,7 @@ if (cfg$model %in% c("all", "6", "tensor_token_k4", "token_k4", "token4")) {
       std_infl * marking_type +
       (1 | variety) + s(date, by = variety, k = 4) +
       (1 | lemma_std) +
-      (1 | id),
+      (1 | document_id),
     family = bernoulli()
   )
 

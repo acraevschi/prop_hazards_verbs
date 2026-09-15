@@ -22,8 +22,8 @@ Key Questions Investigated
    expected to be empty here; it is reported as a tripwire on the rule, not as
    a finding about the language.
 3. Concentration across Lemmas: Which verbs drive the consonant leveling counts?
-4. Channel Asymmetry: within a bipartite cell the vowel row and the consonant row
-   describe the same text, so they are a matched pair. When exactly one of the two
+4. Channel Asymmetry: each bipartite token yields one vowel row and one consonant
+   row, so they are a matched pair. When exactly one of the two
    marks gives way, which one is it? This is tested on the discordant pairs, with
    an interval bootstrapped over lemmas; the unpaired contrasts in section 4 of
    the report treat those matched rows as independent and are descriptive only.
@@ -61,12 +61,14 @@ SUMMARY_CSV_DEFAULT = "analysis/reports/consonant_summary.csv"
 LEMMA_CSV_DEFAULT = "analysis/reports/consonant_lemma_breakdown.csv"
 PAIRED_CSV_DEFAULT = "analysis/reports/consonant_paired_discordance.csv"
 
-# The key that identifies one observation cell. run_brms.R de-duplicates on the
-# whole predictor row, and `id` is a document id rather than a token id, so a
-# cell is one lemma in one document in one inflectional slot - not one token.
-# The vowel and the consonant row of the same cell are the same stretch of text
-# written by the same scribe, which is what makes them a matched pair.
-PAIR_KEY = ["lemma_id", "id", "date", "variety", "std_infl", "corpus"]
+# Each channel row is derived from one corpus token. observation_id is qualified
+# by corpus and document, so local token labels such as t1 may safely recur.
+# document_id is retained as context but is not specific enough to pair rows.
+PAIR_KEY = ["observation_id"]
+PAIR_CONTEXT = [
+    "document_id", "token_id", "lemma_id", "lemma", "date", "variety",
+    "std_infl", "corpus",
+]
 PAIRED_BOOTSTRAP_DRAWS = 10000
 PAIRED_BOOTSTRAP_SEED = 97
 
@@ -335,31 +337,63 @@ def compute_statistical_contrasts(long_df: pd.DataFrame, lemma_df: pd.DataFrame)
 
 def build_paired_cells(long_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Match each bipartite cell's vowel row to its consonant row.
+    Match each bipartite token's vowel row to its consonant row.
 
     Only bipartite paradigms have a consonant row at all, so this is the whole
     population in which the two channels can be compared. Pairing them is not a
     refinement of the marking_type contrast - it is a different design. The
     bipartite-vs-unipartite contrast is between lemmas; vowel-vs-consonant is
-    within one cell, where date, scribe, document, frequency and inflectional
-    slot are identical by construction and cancel.
+    within one attestation, where date, scribe, document, frequency and
+    inflectional slot are identical by construction and cancel.
     """
-    vowel = (
-        long_df[long_df["marking_type"] == "vowel_bipartite"]
-        .drop_duplicates(subset=PAIR_KEY)[PAIR_KEY + ["lemma", "has_levelled"]]
-        .rename(columns={"has_levelled": "vowel_leveled"})
+    required = set(PAIR_KEY + PAIR_CONTEXT + ["marking_type", "has_levelled"])
+    missing = required - set(long_df.columns)
+    if missing:
+        raise ValueError(
+            "Paired analysis is missing columns: " + ", ".join(sorted(missing))
+        )
+
+    def channel(marking_type, outcome_name):
+        sub = long_df[long_df["marking_type"] == marking_type]
+        duplicates = sub[sub.duplicated(PAIR_KEY, keep=False)]
+        if not duplicates.empty:
+            examples = duplicates["observation_id"].drop_duplicates().head(5).tolist()
+            raise ValueError(
+                f"{marking_type} has multiple rows for one token: {examples}"
+            )
+        return sub[PAIR_KEY + PAIR_CONTEXT + ["has_levelled"]].rename(
+            columns={"has_levelled": outcome_name}
+        )
+
+    vowel = channel("vowel_bipartite", "vowel_leveled")
+    cons = channel("consonant_bipartite", "cons_leveled")
+    paired = vowel.merge(
+        cons,
+        on=PAIR_KEY,
+        how="inner",
+        validate="one_to_one",
+        suffixes=("_vowel", "_cons"),
     )
-    cons = (
-        long_df[long_df["marking_type"] == "consonant_bipartite"]
-        .drop_duplicates(subset=PAIR_KEY)[PAIR_KEY + ["has_levelled"]]
-        .rename(columns={"has_levelled": "cons_leveled"})
+
+    for col in PAIR_CONTEXT:
+        vowel_col = paired[f"{col}_vowel"]
+        cons_col = paired[f"{col}_cons"]
+        equal = vowel_col.eq(cons_col) | (vowel_col.isna() & cons_col.isna())
+        if not equal.all():
+            bad = paired.loc[~equal, "observation_id"].head(5).tolist()
+            raise ValueError(f"Paired token metadata disagrees for {col}: {bad}")
+        paired[col] = vowel_col
+
+    paired.drop(
+        columns=[f"{col}_{side}" for col in PAIR_CONTEXT for side in ("vowel", "cons")],
+        inplace=True,
     )
-    return vowel.merge(cons, on=PAIR_KEY, how="inner")
+    return paired[PAIR_KEY + PAIR_CONTEXT + ["vowel_leveled", "cons_leveled"]]
 
 
 def paired_channel_test(pairs: pd.DataFrame) -> Dict:
     """
-    Which channel gives way first, tested within the cell.
+    Which channel gives way first, tested within the attested token.
 
     Concordant pairs carry no information about the direction of the asymmetry,
     so the test is the exact binomial on the discordant ones - McNemar's test in
@@ -367,7 +401,7 @@ def paired_channel_test(pairs: pd.DataFrame) -> Dict:
 
     The interval is bootstrapped over lemmas, not over pairs. Events are heavily
     concentrated (ziehen alone supplies most of them), and an interval that
-    resamples pairs would treat one verb's many cells as many independent facts.
+    resamples pairs would treat one verb's many tokens as many independent facts.
     Resampling lemmas asks the question that matters: would this hold on another
     sample of verbs?
     """
@@ -429,7 +463,7 @@ def paired_lemma_breakdown(pairs: pd.DataFrame) -> pd.DataFrame:
         rows.append({
             "lemma_id": lid,
             "lemma": g["lemma"].iloc[0],
-            "paired_cells": len(g),
+            "paired_tokens": len(g),
             "cons_only": cons_only,
             "vowel_only": vowel_only,
             "discordant": cons_only + vowel_only,
@@ -498,7 +532,7 @@ def generate_markdown_report(
     )
     lines.append(f"3. **High Concentration**: The largest contributor is {top_morph_str}.")
     lines.append(
-        f"4. **Within the cell, the consonant gives way first**: on the {paired['n_pairs']:,} cells where both "
+        f"4. **Within the token, the consonant gives way first**: on the {paired['n_pairs']:,} tokens where both "
         f"channels are informative, exactly one mark gives way in {paired['discordant']} of them, and it is the "
         f"consonant in **{paired['point_pct']:.1f}%** of those "
         f"(lemma-clustered 95% CI {paired['ci_lower_pct']:.1f}%-{paired['ci_upper_pct']:.1f}%). "
@@ -534,7 +568,7 @@ def generate_markdown_report(
     lines.append("")
     lines.append(
         "> **Read these as descriptive rates, not as tests.** The consonant rows and the vowel-bipartite rows "
-        f"are not independent samples: {paired['n_pairs']:,} of them are the *same cells*, each contributing one "
+        f"are not independent samples: {paired['n_pairs']:,} of them are the *same tokens*, each contributing one "
         "row to each channel. Fisher's exact test assumes independence, so the p-values below are far smaller "
         "than the evidence warrants, and the events are concentrated in a handful of verbs besides. "
         "The consonant-vs-vowel comparison is tested properly in section 5, which uses the pairing instead of "
@@ -553,18 +587,18 @@ def generate_markdown_report(
         lines.append(f"| {c['group1']} vs. {c['group2']} | {c['g1_rate_pct']:.2f}% | {c['g2_rate_pct']:.2f}% | {c['odds_ratio']:.2f} | [{c['ci_95'][0]}, {c['ci_95'][1]}] | {p_str} |")
     lines.append("")
 
-    lines.append("## 5. Within-Cell Channel Asymmetry (Paired Design)")
+    lines.append("## 5. Within-Token Channel Asymmetry (Paired Design)")
     lines.append("")
     lines.append(
-        "Sections 1-4 compare channels as if they were separate samples. They are not. Every bipartite cell "
-        "carries a vowel row and a consonant row describing the same stretch of text, so the two are a matched "
-        "pair: same verb, same document, same date, same scribe, same inflectional slot, same frequency. "
+        "Sections 1-4 compare channels as if they were separate samples. They are not. Every bipartite token "
+        "carries a vowel row and a consonant row describing the same attestation, so the two are a matched "
+        "pair: same observation_id, verb, document, date, scribe, inflectional slot, and frequency. "
         "Everything the GAMM spends its covariates controlling for cancels by construction here. "
         "The question this design answers is not *how much* each channel levels, but **which mark gives way "
         "when only one of them does**."
     )
     lines.append("")
-    lines.append(f"Matched cells: **{paired['n_pairs']:,}** across **{paired['n_lemmas']}** bipartite verbs.")
+    lines.append(f"Matched tokens: **{paired['n_pairs']:,}** across **{paired['n_lemmas']}** bipartite verbs.")
     lines.append("")
     lines.append("| | Consonant resisted | Consonant leveled |")
     lines.append("| :--- | :---: | :---: |")
@@ -572,15 +606,15 @@ def generate_markdown_report(
     lines.append(f"| **Vowel leveled** | {paired['vowel_only']} | {paired['both']} |")
     lines.append("")
     lines.append(
-        "Concordant cells (both marks resisted, or both gave way) carry no information about direction, so the "
-        f"test is the exact binomial on the **{paired['discordant']} discordant** cells - McNemar's test in its "
+        "Concordant tokens (both marks resisted, or both gave way) carry no information about direction, so the "
+        f"test is the exact binomial on the **{paired['discordant']} discordant** tokens - McNemar's test in its "
         "exact form."
     )
     lines.append("")
     p_str = f"{paired['p_value']:.2e}" if paired.get("p_value") is not None else "N/A (scipy unavailable)"
     lines.append("| Quantity | Value |")
     lines.append("| :--- | :--- |")
-    lines.append(f"| Discordant cells | {paired['discordant']} |")
+    lines.append(f"| Discordant tokens | {paired['discordant']} |")
     lines.append(f"| Consonant gave way | {paired['cons_only']} |")
     lines.append(f"| Vowel gave way | {paired['vowel_only']} |")
     lines.append(f"| P(the mark that gives way is the consonant) | **{paired['point_pct']:.1f}%** |")
@@ -591,18 +625,18 @@ def generate_markdown_report(
     lines.append(f"| Bootstrap draws reversing the direction | {paired['share_reversed_pct']:.1f}% |")
     lines.append("")
     lines.append(
-        "The interval resamples **verbs**, not cells. The events are concentrated, and an interval built by "
-        "resampling cells would count one verb's many documents as many independent facts. The clustered "
+        "The interval resamples **verbs**, not tokens. The events are concentrated, and an interval built by "
+        "resampling tokens would count one verb's many attestations as many independent facts. The clustered "
         "interval is therefore much wider than the exact p-value suggests, and it is the one to quote."
     )
     lines.append("")
-    lines.append("### 5.1 Where the discordant cells come from")
+    lines.append("### 5.1 Where the discordant tokens come from")
     lines.append("")
-    lines.append("| Lemma ID | Lemma | Paired Cells | Consonant Only | Vowel Only | Discordant | Share (%) |")
+    lines.append("| Lemma ID | Lemma | Paired Tokens | Consonant Only | Vowel Only | Discordant | Share (%) |")
     lines.append("| :---: | :--- | :---: | :---: | :---: | :---: | :---: |")
     for _, r in paired_df.iterrows():
         lines.append(
-            f"| {r['lemma_id']} | *{r['lemma']}* | {int(r['paired_cells']):,} | {int(r['cons_only'])} | "
+            f"| {r['lemma_id']} | *{r['lemma']}* | {int(r['paired_tokens']):,} | {int(r['cons_only'])} | "
             f"{int(r['vowel_only'])} | {int(r['discordant'])} | {r['share_of_discordant_pct']:.1f}% |"
         )
     lines.append("")
@@ -616,7 +650,7 @@ def generate_markdown_report(
     )
     lines.append(
         "2. **It is a separate result from the GAMM, with a separate design.** The bipartite-vs-unipartite "
-        "contrast is between lemmas and rests on few verbs. This one is within the cell. Neither is a robustness "
+        "contrast is between lemmas and rests on few verbs. This one is within the token. Neither is a robustness "
         "check on the other, and they should be reported as two findings, not one."
     )
     lines.append(
@@ -627,7 +661,7 @@ def generate_markdown_report(
         "4. **It does not license adding the consonant channel to `marking_type` as a third level.** Unipartite "
         "verbs have no consonant rows by construction, so that level would have no comparison group; the paired "
         "rows would enter the GAMM as if independent; and one random-effect structure cannot serve a "
-        "between-lemma and a within-cell contrast at once. That is why `run_brms.R` fits the vowel channel only."
+        "between-lemma and a within-token contrast at once. That is why `run_brms.R` fits the vowel channel only."
     )
     lines.append("")
 
@@ -664,8 +698,8 @@ def main():
     print("\n--- Mechanism Summary (by admitting clause) ---")
     print(mech_df.to_string(index=False))
 
-    print("\n--- Within-Cell Channel Asymmetry (paired) ---")
-    print(f"  matched cells      {paired['n_pairs']:,} across {paired['n_lemmas']} verbs")
+    print("\n--- Within-Token Channel Asymmetry (paired) ---")
+    print(f"  matched tokens     {paired['n_pairs']:,} across {paired['n_lemmas']} verbs")
     print(f"  discordant         {paired['discordant']}  (consonant {paired['cons_only']}, vowel {paired['vowel_only']})")
     print(f"  P(consonant first) {paired['point_pct']:.1f}%  "
           f"lemma-clustered 95% CI ({paired['ci_lower_pct']:.1f}%, {paired['ci_upper_pct']:.1f}%)")

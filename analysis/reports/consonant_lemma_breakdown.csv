@@ -1,10 +1,10 @@
 lemma_id,lemma,category,mechanism,alternation,observations,leveled,rate_pct,share_of_cons_events
-17,ziehen,Verner (past sg ~ past pl),Verner (past sg ~ past pl),"g ~ h / χ ~ g, g ~ χ",543,34,6.26,52.3
-95,lîden,"Verner (medial, pres ~ past)","Verner (medial, pres ~ past)",t ~ d,115,10,8.7,15.4
-145,lîhen,"Verner (medial, pres ~ past)","Verner (medial, pres ~ past)",w ~ h,11,9,81.82,13.8
-216,verlieren,Verner (past sg ~ past pl),Verner (past sg ~ past pl),"r ~ s / r ~ s, s ~ r",52,6,11.54,9.2
-119,genesen,Verner (past sg ~ past pl),Verner (past sg ~ past pl),"r ~ s / r ~ s, s ~ r",12,4,33.33,6.2
-8,snîden,"Verner (medial, pres ~ past)","Verner (medial, pres ~ past)",t ~ d,45,1,2.22,1.5
-219,zîhen,Verner (past sg ~ past pl),Verner (past sg ~ past pl),"g ~ h / χ ~ g, h ~ g, g ~ h, g ~ χ",10,1,10.0,1.5
-330,kièsen,Verner (past sg ~ past pl),Verner (past sg ~ past pl),"r ~ s / r ~ s, s ~ r",75,0,0.0,0.0
-149,mîden,"Verner (medial, pres ~ past)","Verner (medial, pres ~ past)",t ~ d,21,0,0.0,0.0
+17,ziehen,Verner (past sg ~ past pl),Verner (past sg ~ past pl),"g ~ h / g ~ χ, χ ~ g",636,34,5.35,50.0
+144,lîhen,"Verner (medial, pres ~ past)","Verner (medial, pres ~ past)",w ~ h,13,11,84.62,16.2
+94,lîden,"Verner (medial, pres ~ past)","Verner (medial, pres ~ past)",t ~ d,246,10,4.07,14.7
+215,verlieren,Verner (past sg ~ past pl),Verner (past sg ~ past pl),"r ~ s / s ~ r, r ~ s",94,6,6.38,8.8
+118,genesen,Verner (past sg ~ past pl),Verner (past sg ~ past pl),"r ~ s / s ~ r, r ~ s",20,5,25.0,7.4
+8,snîden,"Verner (medial, pres ~ past)","Verner (medial, pres ~ past)",t ~ d,65,1,1.54,1.5
+218,zîhen,Verner (past sg ~ past pl),Verner (past sg ~ past pl),"g ~ h / g ~ h, h ~ g, χ ~ g, g ~ χ",13,1,7.69,1.5
+329,kièsen,Verner (past sg ~ past pl),Verner (past sg ~ past pl),"r ~ s / s ~ r, r ~ s",99,0,0.0,0.0
+148,mîden,"Verner (medial, pres ~ past)","Verner (medial, pres ~ past)",t ~ d,26,0,0.0,0.0

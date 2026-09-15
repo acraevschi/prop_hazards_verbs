@@ -24,13 +24,12 @@ def extract_strong_verbs(folder_path="mhg_corpus", output_file="mhg_corpus.csv")
             return
 
     # Get all files in the corpus directory
-    filenames = os.listdir(folder_path)
+    filenames = sorted(os.listdir(folder_path))
     tokens_to_keep = ["form", "norm", "lemma", "inflClass", "grapho", "infl"]
     metadata_to_keep = [
         "language-region",
         "date",
         "time",
-        "id",  # id for document id
         "specific_dating",  # not always available
     ]
 
@@ -54,6 +53,11 @@ def extract_strong_verbs(folder_path="mhg_corpus", output_file="mhg_corpus.csv")
                 else:
                     metadata[field] = None
 
+        source_document_id = data.get("metadata", {}).get("id")
+        if not source_document_id:
+            raise ValueError(f"Missing MHG document id in {file_path}")
+        document_id = f"MHG:{source_document_id}"
+
         # Process tokens
         if "token" in data:
             # Count total words for frequency calculation
@@ -72,6 +76,12 @@ def extract_strong_verbs(folder_path="mhg_corpus", output_file="mhg_corpus.csv")
                 if token.get("inflClass") == "v":
                     continue
 
+                token_id = token.get("id")
+                if not token_id:
+                    raise ValueError(
+                        f"Missing MHG token id in document {source_document_id}"
+                    )
+
                 # Extract only the fields we want to keep
                 token_data = {}
                 for field in tokens_to_keep:
@@ -88,6 +98,9 @@ def extract_strong_verbs(folder_path="mhg_corpus", output_file="mhg_corpus.csv")
 
                 # Add metadata to token
                 token_data.update(metadata)
+                token_data["document_id"] = document_id
+                token_data["token_id"] = token_id
+                token_data["observation_id"] = f"{document_id}:{token_id}"
                 all_tokens.append(token_data)
 
     # Convert to DataFrame
@@ -133,6 +146,14 @@ def extract_strong_verbs(folder_path="mhg_corpus", output_file="mhg_corpus.csv")
 
     # exclude weak verbs
     df = df[df["inflClass"] != "wk"]
+
+    if df["observation_id"].duplicated().any():
+        duplicates = df.loc[
+            df["observation_id"].duplicated(keep=False), "observation_id"
+        ].unique()
+        raise ValueError(
+            "MHG observation ids are not unique: " + ", ".join(duplicates[:5])
+        )
 
     # Save the combined dataset
     print(f"Saving data to `{output_file}`...")

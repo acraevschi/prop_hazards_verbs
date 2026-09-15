@@ -42,7 +42,7 @@ def extract_strong_verbs(folder_path="enhg_corpus", output_file="enhg_corpus.csv
 
         # First pass: Process files and collect tokens
         for filename in tqdm(
-            os.listdir(subfolder_path), desc=f"Processing {subfolder}"
+            sorted(os.listdir(subfolder_path)), desc=f"Processing {subfolder}"
         ):
             if not filename.endswith(".xml"):
                 continue
@@ -50,6 +50,10 @@ def extract_strong_verbs(folder_path="enhg_corpus", output_file="enhg_corpus.csv
             filepath = os.path.join(subfolder_path, filename)
             tree = ET.parse(filepath)
             root = tree.getroot()
+            source_document_id = root.get("id")
+            if not source_document_id:
+                raise ValueError(f"Missing ENHG document id on <text> in {filepath}")
+            document_id = f"ENHG:{source_document_id}"
 
             # Parse header metadata
             metadata = {}
@@ -68,6 +72,10 @@ def extract_strong_verbs(folder_path="enhg_corpus", output_file="enhg_corpus.csv
             total_word_count += len(all_tokens)
             for token in all_tokens:
                 token_id = token.get("id")
+                if not token_id:
+                    raise ValueError(
+                        f"Missing ENHG token id in document {source_document_id}"
+                    )
                 tok_dipl = token.find("tok_dipl", ns)
                 tok_anno = token.find("tok_anno", ns)
 
@@ -133,7 +141,9 @@ def extract_strong_verbs(folder_path="enhg_corpus", output_file="enhg_corpus.csv
                         "date": metadata.get("date", ""),
                         "time": metadata.get("time", ""),
                         "corpus": metadata.get("corpus", ""),
-                        "id": token_id,
+                        "document_id": document_id,
+                        "token_id": token_id,
+                        "observation_id": f"{document_id}:{token_id}",
                         "specific_dating": "",
                         "lemma_count": 0,  # Placeholders for frequencies
                         "lemma_freq_per_1000": 0.0,
@@ -174,6 +184,14 @@ def extract_strong_verbs(folder_path="enhg_corpus", output_file="enhg_corpus.csv
     results_df = results_df[
         ~results_df["inflClass"].isin(["Sw", "", "*", "Flekt", "Unflekt"])
     ]
+
+    if results_df["observation_id"].duplicated().any():
+        duplicates = results_df.loc[
+            results_df["observation_id"].duplicated(keep=False), "observation_id"
+        ].unique()
+        raise ValueError(
+            "ENHG observation ids are not unique: " + ", ".join(duplicates[:5])
+        )
 
     # save results to CSV
     print(f"Saving data to `{output_file}`...")

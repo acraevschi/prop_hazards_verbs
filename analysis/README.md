@@ -9,7 +9,7 @@ This directory contains the statistical modeling, MCMC convergence diagnostics, 
 ```
 analysis/
 ├── README.md                                <- This documentation file
-├── data_for_analysis.csv                    <- Prepared vowel-only modeling dataset (17,467 rows, 124 unique lemmas)
+├── data_for_analysis.csv                    <- Prepared vowel-only modeling dataset (38,291 token rows, 124 unique lemmas)
 │
 ├── 🧠 Core Bayesian Modeling Pipeline
 │   ├── run_brms.R                           <- Fits 6 Bayesian GAMM models via brms / Stan (Option A: Vowel-Only)
@@ -17,7 +17,7 @@ analysis/
 │   └── analyze_models.html                  <- Rendered R Markdown analysis report
 │
 ├── 🔬 Consonant Channel & Mechanism Audits
-│   ├── consonant_analysis.py                <- Consonant channel audit + within-cell paired channel test
+│   ├── consonant_analysis.py                <- Consonant channel audit + within-token paired channel test
 │   ├── marking_type_summary.py              <- Fast reshape & marking type breakdown straight from coded data
 │   └── check_alternation_patterns.ipynb     <- Interactive visual inspection of alternation patterns
 │
@@ -58,7 +58,8 @@ analysis/
     4. `tensor_fit_marking_type_k4` (Tensor Product GAMM with lemma frequency, $k=4$, sensitivity check on basis dimension)
     5. `base_fit_marking_type_k10` (Smooth Interaction GAMM with lemma frequency, $k=10$)
     6. `base_fit_marking_type` (Smooth Interaction GAMM with lemma frequency, $k=4$, appendix baseline)
-  - **CLI Flags**: Supports `--test` (fast test fit) and `--dry-run` (validates formulas and Stan code without sampling) alongside `--chains`, `--iter`, `--cores`, `--threads`, `--backend`, and `--overwrite`.
+  - **Observation identity**: each row is one collision-free `observation_id`; `document_id` supplies the document random effect and does not collapse repeated attestations of a lemma and slot.
+  - **CLI Flags**: Supports `--prepare-only` (rebuilds and validates model data without Stan), `--test` (fast test fit), and `--dry-run` (validates formulas and Stan code without sampling) alongside `--chains`, `--iter`, `--cores`, `--threads`, `--backend`, and `--overwrite`.
   - **Outputs**: Serialized `.rds` model objects in `fits/` and prepared modeling data in `analysis/data_for_analysis.csv`.
 
 * **`analyze_models.Rmd`**:
@@ -70,11 +71,11 @@ analysis/
 ### 2. Dedicated Consonant Analysis
 
 * **`consonant_analysis.py`**:
-  - **Purpose**: Standalone module and CLI tool auditing the consonant channel, whose leveling rate (7.35%) is well above both bipartite vowels (0.80%) and unipartite vowels (2.04%).
+  - **Purpose**: Standalone module and CLI tool auditing the consonant channel on source-token observations.
   - **Category is derived from the paradigm, not hand-listed**: `classify_consonant_lemma()` reads the same anchors and the same `diff_cons_*` flags, through the same clauses, that `step_2_establish_baseline` used to admit the paradigm. The two therefore cannot drift apart. Because the upstream shape test already rejects *Auslautverhärtung* (*scheiden* d ~ t ~ d), **every paradigm here is grammatischer Wechsel by construction**; the devoicing category is empty and is printed as a tripwire on the rule, not as a finding about the language.
   - **Two designs, kept apart**:
-    - *Sections 1–4* report unpaired rates and odds ratios. These are **descriptive only** — the consonant rows and the vowel-bipartite rows are largely the same cells, so Fisher's exact test understates the uncertainty badly.
-    - *Section 5* is the design that matches the channel question: each bipartite cell contributes a vowel row and a consonant row for the same text, so they form a matched pair. The exact binomial on the discordant pairs (McNemar) asks **which mark gives way when only one does**, with a 95% interval bootstrapped over lemmas rather than cells, because the events are concentrated in a few verbs.
+    - *Sections 1–4* report unpaired rates and odds ratios. These are **descriptive only** — the consonant rows and the vowel-bipartite rows are largely measurements of the same tokens, so Fisher's exact test understates the uncertainty badly.
+    - *Section 5* is the design that matches the channel question: each bipartite `observation_id` contributes one vowel row and one consonant row for the same attestation, so they form a matched pair. The exact binomial on the discordant pairs (McNemar) asks **which mark gives way when only one does**, with a 95% interval bootstrapped over lemmas rather than tokens, because the events are concentrated in a few verbs.
   - **Outputs**: `reports/consonant_analysis_report.md`, `reports/consonant_summary.csv`, `reports/consonant_lemma_breakdown.csv`, and `reports/consonant_paired_discordance.csv`.
 
 ---
@@ -105,7 +106,7 @@ analysis/
 To reproduce the analysis and audit reports:
 
 ```bash
-# 1. Run Consonant Channel Analysis (audit + paired within-cell channel test)
+# 1. Run Consonant Channel Analysis (audit + paired within-token channel test)
 python analysis/consonant_analysis.py
 
 # 2. Run Pre-Modeling Diagnostics & Double Robustness Checks
@@ -113,6 +114,9 @@ python analysis/attrition_diagnostics.py
 python analysis/target_sensitivity.py
 
 # 3. Fit Bayesian GAMM Models (Option A: Vowel-Only)
+# Prepare the token-level model table without Stan:
+Rscript analysis/run_brms.R --prepare-only
+
 # Dry-run validation:
 Rscript analysis/run_brms.R --dry-run
 

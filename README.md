@@ -76,6 +76,12 @@ python data/extract_mhg_data.py
 python data/extract_enhg_data.py
 ```
 
+Both extractors use the same identity schema. `document_id` is corpus-qualified
+(`MHG:M001`, `ENHG:F016`) and is the grouping variable for the document random
+effect; `token_id` preserves the source-local token label; and `observation_id`
+combines corpus, document, and token into a collision-free attestation key.
+The former overloaded `id` column is no longer written.
+
 ### Stage 2: Etymological Lemma Linking & Manual Verification
 
 Cross-corpus lemma linking resolves Middle High German (MHG) and Early New High German (ENHG) verb variants into shared lemma families:
@@ -95,7 +101,7 @@ Cross-corpus lemma linking resolves Middle High German (MHG) and Early New High 
    ```bash
    python data/lemmas/enhg_mhg_mapping.py
    ```
-   *Applies a DSU graph algorithm to group simplex bases, derived prefixes, and cross-corpus links into discrete `lemma_id` identifiers, outputting `data/lemmas/lemma_id.csv` and `data/combined_corpus.csv`.*
+   *Applies a DSU graph algorithm to group simplex bases, derived prefixes, and cross-corpus links into discrete `lemma_id` identifiers. `data/lemmas/lemma_id.csv` retains the graph key `(corpus, lemma)`, so an identical surface spelling in the two language inventories remains unambiguous. The validated many-to-one join writes every source token to `data/combined_corpus.csv`; unmapped tokens remain there with an empty `lemma_id` for audit and are excluded during normalization.*
 
 ### Stage 3: Normalization & Thresholding
 ```bash
@@ -146,7 +152,7 @@ Three decisions in this stage are worth knowing before reading any number that c
 1. **Consonant Channel Analysis** (`analysis/consonant_analysis.py`):
    - **Purpose**: Dedicated empirical audit of the consonant channel (`consonant_bipartite`), which the primary GAMM excludes.
    - **Category is derived, not hand-listed**: each paradigm is labelled by the clause of the bipartite rule that admitted it, read off the same anchors `step_2_establish_baseline` used, so this report cannot drift from the rule that built its own input. Because the shape test already rejects *Auslautverhärtung* upstream, **every paradigm in this channel is grammatischer Wechsel by construction** and the devoicing category is empty. It is printed as a tripwire: a non-zero count there means the upstream rule changed, not that the language did. (*snîden*, *lîden* and *mîden* are d ~ t ~ **t** — the past plural shares the *t* — so their alternation is Class I Verner, not a spelling effect.)
-   - **Within-cell channel asymmetry**: every bipartite cell carries both a vowel row and a consonant row for the same stretch of text, so the two are a matched pair. Section 5 of the report tests **which mark gives way when only one of them does**, using the exact binomial on the discordant pairs with a lemma-clustered interval. The unpaired odds ratios in section 4 are descriptive only — they treat matched rows as independent samples and their p-values are far too small.
+   - **Within-token channel asymmetry**: every bipartite source token carries both a vowel row and a consonant row with the same `observation_id`, so the two are a matched pair. Section 5 of the report tests **which mark gives way when only one of them does**, using the exact binomial on the discordant pairs with a lemma-clustered interval. The unpaired odds ratios in section 4 are descriptive only — they treat matched rows as independent samples and their p-values are far too small.
    - **Command**:
      ```bash
      python analysis/consonant_analysis.py
@@ -186,8 +192,11 @@ Once the data is verified and coded:
    - Serializes and saves the fitted model objects (`.rds`) directly into the `fits/` folder, with LOO-CV attached.
    - **CLI Options**:
      ```bash
-     # Dry-run validation (checks stancode & data without sampling):
-     Rscript analysis/run_brms.R --dry-run
+    # Dry-run validation (checks stancode & data without sampling):
+    Rscript analysis/run_brms.R --dry-run
+
+    # Rebuild and validate analysis/data_for_analysis.csv without constructing or fitting models:
+    Rscript analysis/run_brms.R --prepare-only
 
      # Fast test run (2 chains, small iterations):
      Rscript analysis/run_brms.R --test
@@ -234,7 +243,7 @@ Disambiguating this needs the surrounding graphotactics and, in the hard cases,
 the lemma, and no rule we tried separated *geuallen* (v) from *geuben* (u)
 without new errors elsewhere. It is left in place.
 
-**Size**: 40 of 49,616 coded rows carry a nucleus of three or more characters,
+**Size**: 40 of 47,248 coded rows carry a nucleus of three or more characters,
 which is phonotactically impossible for a High German root and therefore marks
 every instance of this failure. 134 tokens show a prefix followed by a `u` that
 spells /v/. Both are confined to ReF. Such rows compare equal to neither anchor
@@ -325,19 +334,17 @@ the input that matters is what a speaker was exposed to. An Upper German speaker
 who never met the *w*-alternant had a unipartite paradigm, and coding it
 unipartite is correct rather than a concession to thin data. See also limitation 3.
 
-**Sensitivity**: the headline contrast is measurably sensitive to how this one
-verb is handled, and the range is reported here rather than left to be found.
-
-| Treatment of *lîhen* | Bipartite obs | Events | Bipartite rate | Unipartite rate | Ratio |
-| :--- | ---: | ---: | ---: | ---: | ---: |
-| **As coded** (bipartite CG, unipartite UG) | 1,622 | 13 | 0.80% | 2.04% | **2.55×** |
-| Bipartite in both varieties | 1,651 | 23 | 1.39% | 1.99% | 1.43× |
-| Anchors required to carry ≥ 2 agreeing tokens | 1,598 | 9 | 0.56% | 2.05% | 3.64× |
+**Sensitivity**: the former table used document/slot cells created by the
+overloaded `id` field and is therefore not retained as a current result. The
+next analysis regeneration must recompute all three scenarios on source-token
+observations. The repaired as-coded data contain 2,878 bipartite vowel tokens
+with 17 events (0.59%) and 35,413 unipartite vowel tokens with 351 events
+(0.99%).
 
 ### 7. The bipartite cell is small and concentrated
 
-**Size**: 12 lemmas and 13 leveling events across 1,622 observations. Five verbs
-carry every event (*lîden* 4, *ziehen* 3, *lîhen* 3, *snîden* 2, *zîhen* 1), and
+**Size**: 12 lemmas and 17 leveling events across 2,878 source-token observations. Five verbs
+carry every event (*lîden* 8, *ziehen* 3, *lîhen* 3, *snîden* 2, *zîhen* 1), and
 only 18 bipartite observations fall after 1500. The wide credible interval on the
 `marking_type` coefficient is the honest expression of this; run
 `python analysis/marking_type_summary.py` for the current per-lemma breakdown
@@ -366,4 +373,3 @@ conda activate prop_hazards_verbs
 ```
 
 > **Note on Stan**: On macOS, ensure the Xcode command line tools are installed (`xcode-select --install`). On Linux/Debian, ensure build essentials are available (`sudo apt-get install build-essential`).
-

@@ -80,7 +80,7 @@ def map_category(s):
 
 
 def main(args):
-    data = pd.read_csv(args.input, encoding="utf-8")
+    data = pd.read_csv(args.input, encoding="utf-8", low_memory=False)
 
     for i in data["lemma_id"].unique():
         num_rows = len(data[data["lemma_id"] == i])
@@ -108,6 +108,7 @@ def main(args):
         axis=1,
         inplace=True,
     )
+    data["lemma_id"] = data["lemma_id"].astype(int)
     data["principal_part"] = data["principal_part"].astype(int)
     data.reset_index(drop=True, inplace=True)
 

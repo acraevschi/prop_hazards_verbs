@@ -13,7 +13,7 @@ without it is somebody's undocumented re-derivation.
 This script does the reshape and nothing else. It is a faithful port of the
 "2. Reshaping & Predictor Construction" block of run_brms.R (lines ~270-345):
 same vowel_leveled_any / cons_leveled_any collapse, same two filters, same long
-pivot, same marking_type construction, same final de-duplication. It writes
+pivot, same marking_type construction, and the same token-identity validation. It writes
 nothing the pipeline reads, so it cannot disturb the fits.
 
 If run_brms.R's reshape changes, this port has to change with it. The row count
@@ -83,17 +83,36 @@ def _type_freq(df, alt_col):
     return freq.reset_index()
 
 
+def _validate_token_identity(df, context):
+    """Fail rather than silently collapsing two records for one corpus token."""
+    required = {"document_id", "token_id", "observation_id"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"{context} is missing identity columns: {', '.join(sorted(missing))}"
+        )
+    if df[list(required)].isna().any().any():
+        raise ValueError(f"{context} contains missing document or token identities")
+    duplicates = df[df["observation_id"].duplicated(keep=False)]
+    if not duplicates.empty:
+        examples = duplicates["observation_id"].drop_duplicates().head(5).tolist()
+        raise ValueError(
+            f"{context} contains repeated observation_id values: {examples}"
+        )
+
+
 def reshape(coded_path=CODED):
     """Port of run_brms.R's base_model_data -> model_data. Returns the long frame."""
     df = pd.read_csv(coded_path, low_memory=False)
+    _validate_token_identity(df, coded_path)
 
     for col in ("is_leveled_vowel_pres", "is_leveled_vowel_past",
                 "is_leveled_cons_pres", "is_leveled_cons_past"):
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # run_brms.R replaces `lemma` with the shortest surface string per lemma_id
-    # before anything else, so every downstream group and the final unique() see
-    # that label rather than the raw surface form.
+    # before anything else, so every downstream group sees that label rather
+    # than the raw surface form.
     rep = (
         df[df["lemma"].notna() & (df["lemma"] != "")]
         .assign(_n=lambda d: d["lemma"].str.len())
@@ -131,11 +150,8 @@ def reshape(coded_path=CODED):
     long.loc[(long["element_type"] == "vowel") & (bipartite == 1), "marking_type"] = "vowel_bipartite"
     long.loc[(long["element_type"] == "consonant") & (bipartite == 1), "marking_type"] = "consonant_bipartite"
 
-    # The predictors have to be carried into the de-duplication key, not just
-    # the identifiers. `id` is a document id, not a token id, so unique() in R
-    # collapses whole documents; two rows that agree on the identifiers but
-    # differ on a frequency predictor survive as two, and dropping those columns
-    # here would silently delete observations the model sees.
+    # Predictor construction is token-level. observation_id remains the stable
+    # unit while document_id is reserved for the document random effect.
     vowel = long["element_type"] == "vowel"
     long["target_alt_pres_freq"] = long["cons_alternation_pres_freq"].where(
         ~vowel, long["vowel_alternation_pres_freq"])
@@ -154,9 +170,17 @@ def reshape(coded_path=CODED):
         "lemma", "lemma_id", "date", "log_freq", "log_token_freq",
         "has_alt_pres", "log_alt_pres_freq", "has_alt_past", "log_alt_past_freq",
         "marking_type", "is_bipartite", "element_type", "has_levelled",
-        "id", "variety", "std_infl", "corpus",
+        "document_id", "token_id", "observation_id",
+        "variety", "std_infl", "corpus",
     ]
-    long = long[keep].drop_duplicates()
+    long = long[keep]
+    repeated_channels = long.duplicated(["observation_id", "marking_type"], keep=False)
+    if repeated_channels.any():
+        examples = long.loc[repeated_channels, "observation_id"].unique()[:5]
+        raise ValueError(
+            "One token produced multiple rows for the same marking channel: "
+            + ", ".join(examples)
+        )
     long["has_levelled"] = long["has_levelled"].astype(int)
     long["date"] = pd.to_numeric(long["date"], errors="coerce")
     return long
@@ -235,28 +259,19 @@ def print_channel_breakdown(coded_path):
     collapsed rate is not a rate of anything in particular. This table separates
     them.
 
-    Two counts are given for each cell:
-
-      tokens  every coded row, which is what a raw read of coded_output.csv
-              gives and what the printed rates used to rest on;
-      obs     after the de-duplication run_brms.R performs with unique(). `id`
-              is a document id, so that collapses all tokens of one lemma in one
-              document that share a date, a slot and an outcome. It is roughly a
-              factor of two, it is not uniform across cells, and it is the unit
-              the models are actually fitted on.
-
-    Report the obs column. The token column is here so the difference between
-    the two is visible rather than a source of quiet disagreement between this
-    script and the fits.
+    Each observation is one source token. Multiple tokens of the same lemma and
+    slot in one document remain separate attestations; document_id is used only
+    to cluster those observations in the mixed model.
     """
     df = pd.read_csv(coded_path, low_memory=False)
+    _validate_token_identity(df, coded_path)
     for col in ("is_leveled_vowel_pres", "is_leveled_vowel_past",
                 "is_leveled_cons_pres", "is_leveled_cons_past", "is_bipartite"):
         df[col] = pd.to_numeric(df[col], errors="coerce")
     df = df[df["is_bipartite"].notna()]
 
     print("\nLeveling by contrast channel (disaggregated)")
-    print(f"  {'channel':<28}{'marking':<13}{'tokens':>8}{'obs':>8}"
+    print(f"  {'channel':<28}{'marking':<13}{'obs':>8}"
           f"{'leveled':>9}{'rate':>9}")
 
     channels = [
@@ -269,17 +284,11 @@ def print_channel_breakdown(coded_path):
 
     for col, label, markings in channels:
         present = df[df[col].notna()]
-        # Same key run_brms.R's unique() reduces on, restricted to the columns
-        # that identify one observation of this one channel.
-        deduped = present.drop_duplicates(
-            ["lemma_id", "variety", "corpus", "id", "date", "std_infl", col]
-        )
         for marking in markings:
-            tokens = present[present["is_bipartite"] == marking]
-            obs = deduped[deduped["is_bipartite"] == marking]
+            obs = present[present["is_bipartite"] == marking]
             n_obs, leveled = len(obs), int(obs[col].sum())
             rate = 100 * leveled / n_obs if n_obs else 0.0
-            print(f"  {label:<28}{names[marking]:<13}{len(tokens):>8,}"
+            print(f"  {label:<28}{names[marking]:<13}"
                   f"{n_obs:>8,}{leveled:>9,}{rate:>8.2f}%")
 
 

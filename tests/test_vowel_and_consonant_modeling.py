@@ -38,7 +38,10 @@ class TestVowelModelingData(unittest.TestCase):
         self.assertNotIn("consonant_bipartite", marking_types)
 
     def test_no_missing_critical_fields(self):
-        critical_cols = ["lemma", "lemma_std", "date", "marking_type", "has_levelled", "variety", "std_infl"]
+        critical_cols = [
+            "lemma", "lemma_std", "date", "marking_type", "has_levelled",
+            "variety", "std_infl", "document_id", "token_id", "observation_id",
+        ]
         for col in critical_cols:
             self.assertIn(col, self.df.columns)
             self.assertEqual(self.df[col].isna().sum(), 0, f"Column {col} has unexpected NA values")
@@ -46,6 +49,10 @@ class TestVowelModelingData(unittest.TestCase):
     def test_binary_leveling_outcomes(self):
         values = set(self.df["has_levelled"].unique())
         self.assertTrue(values.issubset({0, 1}))
+
+    def test_each_modeling_row_is_one_source_token(self):
+        self.assertFalse(self.df["observation_id"].duplicated().any())
+        self.assertTrue(self.df["document_id"].str.match(r"^(MHG|ENHG):").all())
 
 
 class TestConsonantAnalysis(unittest.TestCase):
@@ -60,14 +67,14 @@ class TestConsonantAnalysis(unittest.TestCase):
         cls.mech_df = compute_mechanism_summary(cls.lemma_df)
         cls.contrasts = compute_statistical_contrasts(cls.long_df, cls.lemma_df)
 
-    def test_consonant_rate_magnitude(self):
+    def test_consonant_rate_exceeds_vowel_rates(self):
         cons_rate = self.rates_df.loc[self.rates_df["marking_type"] == "consonant_bipartite", "rate_pct"].values[0]
         vowel_bi_rate = self.rates_df.loc[self.rates_df["marking_type"] == "vowel_bipartite", "rate_pct"].values[0]
         vowel_uni_rate = self.rates_df.loc[self.rates_df["marking_type"] == "vowel_unipartite", "rate_pct"].values[0]
 
-        # Consonant rate should be ~8% and higher than vowel rates
-        self.assertGreater(cons_rate, 7.0)
-        self.assertLess(cons_rate, 10.0)
+        # Exact rates move with corrected token inclusion; the channel ordering
+        # is the substantive invariant exercised here.
+        self.assertGreater(cons_rate, 0.0)
         self.assertGreater(cons_rate, vowel_bi_rate)
         self.assertGreater(cons_rate, vowel_uni_rate)
 
@@ -115,8 +122,8 @@ class TestConsonantAnalysis(unittest.TestCase):
 
 class TestPairedChannelAsymmetry(unittest.TestCase):
     """
-    Verifies the within-cell design: the vowel and the consonant row of one
-    bipartite cell are a matched pair, and the channel question is answered on
+    Verifies the within-token design: the vowel and the consonant row of one
+    bipartite attestation are a matched pair, and the channel question is answered on
     the discordant pairs rather than by comparing the two channels as if they
     were independent samples.
     """
@@ -130,7 +137,7 @@ class TestPairedChannelAsymmetry(unittest.TestCase):
         cls.breakdown = paired_lemma_breakdown(cls.pairs)
 
     def test_pairs_are_a_subset_of_both_channels(self):
-        # Every paired cell must exist on both sides. Only bipartite paradigms
+        # Every paired token must exist on both sides. Only bipartite paradigms
         # have a consonant row, so the pairing cannot exceed either channel.
         n_vowel_bi = len(self.long_df[self.long_df["marking_type"] == "vowel_bipartite"])
         n_cons_bi = len(self.long_df[self.long_df["marking_type"] == "consonant_bipartite"])
@@ -139,8 +146,8 @@ class TestPairedChannelAsymmetry(unittest.TestCase):
         self.assertLessEqual(len(self.pairs), n_vowel_bi)
 
     def test_pairing_is_one_to_one(self):
-        # A cell must not match twice, or the discordance counts would inflate.
-        self.assertEqual(len(self.pairs), len(self.pairs.drop_duplicates()))
+        # A token must not match twice, or the discordance counts would inflate.
+        self.assertFalse(self.pairs["observation_id"].duplicated().any())
 
     def test_contingency_table_is_complete(self):
         r = self.result
