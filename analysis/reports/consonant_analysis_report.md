@@ -8,7 +8,7 @@ This report provides a dedicated empirical audit of the consonant channel (`cons
 1. **Elevated Raw Leveling Rate**: The consonant channel exhibits an overall leveling rate of **5.61%** (68 / 1,212 observations), which is substantially higher than bipartite vowel leveling (**0.59%**, OR = 10.0) and unipartite vowel leveling (**0.99%**, OR = 5.94).
 2. **All of it is Verner, by construction**: every paradigm in this channel was admitted by `step_2_establish_baseline` only after a shape test that separates grammatischer Wechsel from Auslautverhärtung. Verner leaves the past plural as the odd cell (*wesen* s ~ s ~ r, *quëden* t ~ t ~ d); devoicing leaves the past singular as the odd cell (*scheiden* d ~ t ~ d). The Class I verbs *snîden*, *lîden* and *mîden* are d ~ t ~ **t** - the plural shares the t - so their t ~ d is grammatischer Wechsel, not a spelling effect. Verner-admitted: **5.61%** (68 / 1,212). Devoicing-shaped: **0 observations**, as expected - a non-zero count here would mean the upstream rule had changed.
 3. **High Concentration**: The largest contributor is *ziehen* (lemma 17, 50.0% of consonant events).
-4. **Within the token, the consonant gives way first**: on the 1,083 tokens where both channels are informative, exactly one mark gives way in 61 of them, and it is the consonant in **83.6%** of those (lemma-clustered 95% CI 36.4%-100.0%). This is the comparison the channel question actually asks, and it is reported in section 5.
+4. **Observed within-token asymmetry favors consonant leveling, with substantial uncertainty across verbs**: on the 1,083 tokens where both channels are informative, exactly one mark levels in 61 of them, and it is the consonant in **83.6%** of those (lemma-clustered 95% CI 36.4%-100.0%). Because that interval includes the 50% null, the data do not establish a verb-general directional asymmetry. This comparison is reported in section 5.
 
 ## 1. Overall Marking Type Leveling Rates
 
@@ -61,7 +61,7 @@ Matched tokens: **1,083** across **9** bipartite verbs.
 | **Vowel resisted** | 1,018 | 51 |
 | **Vowel leveled** | 10 | 4 |
 
-Concordant tokens (both marks resisted, or both gave way) carry no information about direction, so the test is the exact binomial on the **61 discordant** tokens - McNemar's test in its exact form.
+Concordant tokens (both marks resisted, or both leveled) carry no information about direction, so the test is the exact binomial on the **61 discordant** tokens - McNemar's test in its exact form. This exact p-value is conditional on treating the discordant tokens as independent. Pairing controls the comparison within a token, but it does not make repeated tokens from the same verb or document independent.
 
 | Quantity | Value |
 | :--- | :--- |
@@ -73,7 +73,7 @@ Concordant tokens (both marks resisted, or both gave way) carry no information a
 | Lemma-clustered 95% CI | (36.4%, 100.0%) |
 | Bootstrap draws reversing the direction | 5.7% |
 
-The interval resamples **verbs**, not tokens. The events are concentrated, and an interval built by resampling tokens would count one verb's many attestations as many independent facts. The clustered interval is therefore much wider than the exact p-value suggests, and it is the one to quote.
+The interval resamples **verbs**, not tokens. The events are concentrated, and an interval built by resampling tokens would count one verb's many attestations as many independent facts. The clustered interval is therefore much wider than the exact p-value suggests, includes the 50% null, and is the one to quote. It addresses concentration by verb; it does not turn the observed asymmetry into evidence about which channel changed earlier or at a faster historical rate.
 
 ### 5.1 Where the discordant tokens come from
 
@@ -91,7 +91,7 @@ The interval resamples **verbs**, not tokens. The events are concentrated, and a
 
 ### 5.2 What this does and does not support
 
-1. **It refines Paul rather than contradicting him.** Paul's argument is that two marks reinforce each other. If one of them erodes several times faster than the other, the bipartite state is transient and asymmetric: the grammatischer Wechsel is the weak link, and bipartite marking is a way-station rather than a stable configuration.
+1. **It is descriptive evidence of channel asymmetry, not temporal sequence or rate.** The point estimate favors consonant-only leveling among discordant tokens, but the lemma-clustered interval includes 50%. These data therefore do not establish that the consonant channel gives way first, erodes faster, or is a general weak link across verbs.
 2. **It is a separate result from the GAMM, with a separate design.** The bipartite-vs-unipartite contrast is between lemmas and rests on few verbs. This one is within the token. Neither is a robustness check on the other, and they should be reported as two findings, not one.
 3. **It is concentrated.** Read section 5.1 before quoting the percentage. The clustered interval already reflects that concentration; the point estimate does not.
 4. **It does not license adding the consonant channel to `marking_type` as a third level.** Unipartite verbs have no consonant rows by construction, so that level would have no comparison group; the paired rows would enter the GAMM as if independent; and one random-effect structure cannot serve a between-lemma and a within-token contrast at once. That is why `run_brms.R` fits the vowel channel only.

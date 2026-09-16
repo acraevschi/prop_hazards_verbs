@@ -393,7 +393,7 @@ def build_paired_cells(long_df: pd.DataFrame) -> pd.DataFrame:
 
 def paired_channel_test(pairs: pd.DataFrame) -> Dict:
     """
-    Which channel gives way first, tested within the attested token.
+    Which channel is leveled in discordant matched tokens.
 
     Concordant pairs carry no information about the direction of the asymmetry,
     so the test is the exact binomial on the discordant ones - McNemar's test in
@@ -532,11 +532,12 @@ def generate_markdown_report(
     )
     lines.append(f"3. **High Concentration**: The largest contributor is {top_morph_str}.")
     lines.append(
-        f"4. **Within the token, the consonant gives way first**: on the {paired['n_pairs']:,} tokens where both "
-        f"channels are informative, exactly one mark gives way in {paired['discordant']} of them, and it is the "
-        f"consonant in **{paired['point_pct']:.1f}%** of those "
-        f"(lemma-clustered 95% CI {paired['ci_lower_pct']:.1f}%-{paired['ci_upper_pct']:.1f}%). "
-        "This is the comparison the channel question actually asks, and it is reported in section 5."
+        f"4. **Observed within-token asymmetry favors consonant leveling, with substantial uncertainty across "
+        f"verbs**: on the {paired['n_pairs']:,} tokens where both channels are informative, exactly one mark "
+        f"levels in {paired['discordant']} of them, and it is the consonant in **{paired['point_pct']:.1f}%** "
+        f"of those (lemma-clustered 95% CI {paired['ci_lower_pct']:.1f}%-{paired['ci_upper_pct']:.1f}%). "
+        "Because that interval includes the 50% null, the data do not establish a verb-general directional "
+        "asymmetry. This comparison is reported in section 5."
     )
     lines.append("")
 
@@ -606,9 +607,11 @@ def generate_markdown_report(
     lines.append(f"| **Vowel leveled** | {paired['vowel_only']} | {paired['both']} |")
     lines.append("")
     lines.append(
-        "Concordant tokens (both marks resisted, or both gave way) carry no information about direction, so the "
+        "Concordant tokens (both marks resisted, or both leveled) carry no information about direction, so the "
         f"test is the exact binomial on the **{paired['discordant']} discordant** tokens - McNemar's test in its "
-        "exact form."
+        "exact form. This exact p-value is conditional on treating the discordant tokens as independent. Pairing "
+        "controls the comparison within a token, but it does not make repeated tokens from the same verb or "
+        "document independent."
     )
     lines.append("")
     p_str = f"{paired['p_value']:.2e}" if paired.get("p_value") is not None else "N/A (scipy unavailable)"
@@ -627,7 +630,9 @@ def generate_markdown_report(
     lines.append(
         "The interval resamples **verbs**, not tokens. The events are concentrated, and an interval built by "
         "resampling tokens would count one verb's many attestations as many independent facts. The clustered "
-        "interval is therefore much wider than the exact p-value suggests, and it is the one to quote."
+        "interval is therefore much wider than the exact p-value suggests, includes the 50% null, and is the one "
+        "to quote. It addresses concentration by verb; it does not turn the observed asymmetry into evidence about "
+        "which channel changed earlier or at a faster historical rate."
     )
     lines.append("")
     lines.append("### 5.1 Where the discordant tokens come from")
@@ -643,10 +648,10 @@ def generate_markdown_report(
     lines.append("### 5.2 What this does and does not support")
     lines.append("")
     lines.append(
-        "1. **It refines Paul rather than contradicting him.** Paul's argument is that two marks reinforce each "
-        "other. If one of them erodes several times faster than the other, the bipartite state is transient and "
-        "asymmetric: the grammatischer Wechsel is the weak link, and bipartite marking is a way-station rather "
-        "than a stable configuration."
+        "1. **It is descriptive evidence of channel asymmetry, not temporal sequence or rate.** The point estimate "
+        "favors consonant-only leveling among discordant tokens, but the lemma-clustered interval includes 50%. "
+        "These data therefore do not establish that the consonant channel gives way first, erodes faster, or is a "
+        "general weak link across verbs."
     )
     lines.append(
         "2. **It is a separate result from the GAMM, with a separate design.** The bipartite-vs-unipartite "
@@ -701,7 +706,7 @@ def main():
     print("\n--- Within-Token Channel Asymmetry (paired) ---")
     print(f"  matched tokens     {paired['n_pairs']:,} across {paired['n_lemmas']} verbs")
     print(f"  discordant         {paired['discordant']}  (consonant {paired['cons_only']}, vowel {paired['vowel_only']})")
-    print(f"  P(consonant first) {paired['point_pct']:.1f}%  "
+    print(f"  consonant share    {paired['point_pct']:.1f}%  "
           f"lemma-clustered 95% CI ({paired['ci_lower_pct']:.1f}%, {paired['ci_upper_pct']:.1f}%)")
     if paired["p_value"] is not None:
         print(f"  exact binomial p   {paired['p_value']:.3e}")
