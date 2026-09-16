@@ -1,0 +1,4 @@
+marking_type,observations_production,leveled_production,preserved_production,leveling_pct_production,observations_rejected_variants,leveled_rejected_variants,preserved_rejected_variants,leveling_pct_rejected_variants,observation_difference,event_difference
+vowel_unipartite,6707,188,6519,2.8030415983301027,6707,186,6521,2.773222006858506,0,-2
+vowel_bipartite,803,12,791,1.4943960149439601,803,12,791,1.4943960149439601,0,0
+total,7510,200,7310,2.663115845539281,7510,198,7312,2.6364846870838883,0,-2

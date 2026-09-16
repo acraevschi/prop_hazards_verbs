@@ -82,6 +82,46 @@ loo_list <- map(models, loo)
 # comparison printed as `.x[[i]]` and the ranking could not be read off it.
 comparison <- loo_compare(loo_list)
 
+dir.create("../analysis/reports", showWarnings = FALSE, recursive = TRUE)
+comparison_out <- data.frame(
+  Model = rownames(comparison),
+  as.data.frame(comparison),
+  row.names = NULL,
+  check.names = FALSE
+)
+write.csv(comparison_out, "../analysis/reports/model_comparison.csv", row.names = FALSE)
+
+psis_out <- map2_dfr(loo_list, names(loo_list), function(x, model_name) {
+  k <- loo::pareto_k_values(x)
+  data.frame(
+    Model = model_name,
+    observations = length(k),
+    max_pareto_k = max(k),
+    k_le_0.5 = sum(k <= 0.5),
+    k_0.5_to_0.7 = sum(k > 0.5 & k <= 0.7),
+    k_0.7_to_1 = sum(k > 0.7 & k <= 1),
+    k_gt_1 = sum(k > 1)
+  )
+})
+write.csv(psis_out, "../analysis/reports/psis_loo_diagnostics.csv", row.names = FALSE)
+
+fit_support <- map2_dfr(models, names(models), function(fit, model_name) {
+  data.frame(
+    Model = model_name,
+    model_observations = nobs(fit),
+    document_lemma_slot_cells = dplyr::n_distinct(model_data$cell_id),
+    source_token_outcomes = sum(
+      model_data$n_tokens[!duplicated(model_data$cell_id)]
+    ),
+    lemmas = dplyr::n_distinct(fit$data$lemma_std),
+    documents = dplyr::n_distinct(fit$data$document_id),
+    uses_document_random_intercept = grepl(
+      "\\(1 \\| document_id\\)", paste(deparse(formula(fit)), collapse = " ")
+    )
+  )
+})
+write.csv(fit_support, "../analysis/reports/model_fit_support.csv", row.names = FALSE)
+
 ```
 
 ```{r}
@@ -123,7 +163,11 @@ if (file.exists("../analysis/reports/mcmc_convergence.csv")) {
 
 knitr::kable(
   mcmc_diag_list,
-  col.names = c("Model", "Max R-hat", "R-hat <= 1.01 (%)", "Min Bulk-ESS", "Min Tail-ESS", "Divergences", "Max Treedepth Hits"),
+  col.names = c(
+    "Model", "Max R-hat", "R-hat <= 1.01 (%)", "Min Bulk-ESS",
+    "Min Tail-ESS", "Divergences", "Min E-BFMI",
+    "Max Treedepth Setting", "Max Treedepth Hits"
+  ),
   caption = "MCMC Convergence Diagnostics Summary"
 )
 ```
@@ -141,6 +185,19 @@ extract_fixed_draws <- function(model, model_name) {
 }
 
 all_fixed_draws <- map2_dfr(models, names(models), extract_fixed_draws)
+
+posterior_summary_out <- map2_dfr(models, names(models), function(fit, model_name) {
+  summary <- as.data.frame(brms::fixef(fit))
+  summary$term <- rownames(summary)
+  summary$Model <- model_name
+  rownames(summary) <- NULL
+  summary[, c("Model", "term", "Estimate", "Est.Error", "Q2.5", "Q97.5")]
+})
+write.csv(
+  posterior_summary_out,
+  "../analysis/reports/posterior_fixed_effects.csv",
+  row.names = FALSE
+)
 
 ggplot(all_fixed_draws, aes(x = .value, y = .variable, color = Model)) +
   stat_pointinterval(position = position_dodge(width = 0.6)) +
@@ -230,6 +287,13 @@ ggsave(
 # Test Paul's Principle: bipartite vowel marking has lower log-odds of leveling relative to unipartite control baseline
 hyp_paul <- hypothesis(fit_primary, "marking_typevowel_bipartite < 0")
 print(hyp_paul)
+evidence_out <- hyp_paul$hypothesis
+evidence_out$Model <- "Tensor (k=10) Token"
+write.csv(
+  evidence_out,
+  "../analysis/reports/evidence_ratios.csv",
+  row.names = FALSE
+)
 ```
 
 ```{r plot-bipartite-contrast, fig.width=12, fig.height=8}
@@ -568,4 +632,3 @@ plot_comparisons(
   ) +
   theme_minimal()
 ```
-

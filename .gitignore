@@ -26,3 +26,4 @@ fits_old/tensor_fit_marking_type_k10.rds
 prompts/
 runs/
 data/lemmas/unimorph_deu.tsv
+fits/*.csv

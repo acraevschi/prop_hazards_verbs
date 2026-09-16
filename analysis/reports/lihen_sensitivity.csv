@@ -1,0 +1,4 @@
+scenario,bipartite_observations,bipartite_events,bipartite_rate_pct,unipartite_observations,unipartite_events,unipartite_rate_pct,unipartite_to_bipartite_rate_ratio
+as coded,803,12,1.4943960149439601,6707,188,2.803041598330103,1.8757020028825606
+lîhen forced bipartite in both varieties,821,16,1.9488428745432398,6689,184,2.750784870683211,1.4114964867693227
+all anchor modes require >=2 agreeing tokens,781,8,1.0243277848911652,6500,183,2.8153846153846156,2.7485192307692308

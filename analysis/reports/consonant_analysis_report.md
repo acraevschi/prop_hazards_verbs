@@ -35,7 +35,7 @@ This report provides a dedicated empirical audit of the consonant channel (`cons
 | 215 | *verlieren* | `r ~ s / s ~ r, r ~ s` | Verner (past sg ~ past pl) | 94 | 6 | 6.38% | 8.8% |
 | 118 | *genesen* | `r ~ s / s ~ r, r ~ s` | Verner (past sg ~ past pl) | 20 | 5 | 25.00% | 7.4% |
 | 8 | *snîden* | `t ~ d` | Verner (medial, pres ~ past) | 65 | 1 | 1.54% | 1.5% |
-| 218 | *zîhen* | `g ~ h / g ~ h, h ~ g, χ ~ g, g ~ χ` | Verner (past sg ~ past pl) | 13 | 1 | 7.69% | 1.5% |
+| 218 | *zîhen* | `g ~ h / h ~ g, g ~ χ, g ~ h, χ ~ g` | Verner (past sg ~ past pl) | 13 | 1 | 7.69% | 1.5% |
 | 329 | *kièsen* | `r ~ s / s ~ r, r ~ s` | Verner (past sg ~ past pl) | 99 | 0 | 0.00% | 0.0% |
 | 148 | *mîden* | `t ~ d` | Verner (medial, pres ~ past) | 26 | 0 | 0.00% | 0.0% |
 

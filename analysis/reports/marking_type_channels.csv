@@ -1,0 +1,7 @@
+channel,marking,observations,leveled,leveling_pct
+vowel (past sg ~ past pl),unipartite,3505,165,4.70756062767475
+vowel (past sg ~ past pl),bipartite,547,13,2.376599634369287
+vowel (pres ~ past),unipartite,33657,186,0.5526339245922097
+vowel (pres ~ past),bipartite,2640,4,0.15151515151515152
+cons (past sg ~ past pl),bipartite,647,44,6.800618238021638
+cons (pres ~ past),bipartite,598,30,5.016722408026756

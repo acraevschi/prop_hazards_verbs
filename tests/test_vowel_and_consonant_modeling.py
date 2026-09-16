@@ -6,7 +6,7 @@ import pandas as pd
 # Add root directory to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from analysis.marking_type_summary import reshape
+from analysis.marking_type_summary import reshape, model_observation_summary
 from analysis.consonant_analysis import (
     load_and_reshape,
     build_paired_cells,
@@ -39,20 +39,68 @@ class TestVowelModelingData(unittest.TestCase):
 
     def test_no_missing_critical_fields(self):
         critical_cols = [
-            "lemma", "lemma_std", "date", "marking_type", "has_levelled",
-            "variety", "std_infl", "document_id", "token_id", "observation_id",
+            "model_row_id", "cell_id", "lemma", "lemma_std", "date", "marking_type",
+            "has_levelled", "outcome_token_count",
+            "leveled_tokens", "preserved_tokens", "n_tokens",
+            "variety", "std_infl", "document_id",
         ]
         for col in critical_cols:
             self.assertIn(col, self.df.columns)
             self.assertEqual(self.df[col].isna().sum(), 0, f"Column {col} has unexpected NA values")
 
-    def test_binary_leveling_outcomes(self):
-        values = set(self.df["has_levelled"].unique())
-        self.assertTrue(values.issubset({0, 1}))
+    def test_counts_are_retained_for_audit_not_likelihood_weight(self):
+        self.assertTrue(set(self.df["has_levelled"]).issubset({0, 1}))
+        self.assertTrue((self.df["leveled_tokens"] >= 0).all())
+        self.assertTrue((self.df["preserved_tokens"] >= 0).all())
+        self.assertTrue((self.df["n_tokens"] >= 1).all())
+        self.assertTrue(
+            (
+                self.df["leveled_tokens"]
+                + self.df["preserved_tokens"]
+                == self.df["n_tokens"]
+            ).all()
+        )
+        expected_count = self.df["leveled_tokens"].where(
+            self.df["has_levelled"] == 1, self.df["preserved_tokens"]
+        )
+        self.assertTrue((self.df["outcome_token_count"] == expected_count).all())
+        cells = self.df.drop_duplicates("cell_id")
+        self.assertEqual(int(cells["n_tokens"].sum()), 38291)
+        mixed = (cells["leveled_tokens"] > 0) & (cells["preserved_tokens"] > 0)
+        self.assertEqual(int(mixed.sum()), 88)
 
-    def test_each_modeling_row_is_one_source_token(self):
-        self.assertFalse(self.df["observation_id"].duplicated().any())
+    def test_each_modeling_row_is_one_distinct_cell_outcome(self):
+        key = ["document_id", "lemma_std", "std_infl", "has_levelled"]
+        self.assertFalse(self.df.duplicated(key).any())
+        self.assertFalse(self.df["model_row_id"].duplicated().any())
+        self.assertEqual(len(self.df), 7510)
+        self.assertEqual(self.df["cell_id"].nunique(), 7422)
         self.assertTrue(self.df["document_id"].str.match(r"^(MHG|ENHG):").all())
+
+    def test_cell_frequency_aggregation_is_auditable(self):
+        self.assertTrue((self.df["n_log_freq_values"] >= 1).all())
+        self.assertTrue((self.df["log_freq_min"] <= self.df["log_freq"]).all())
+        self.assertTrue((self.df["log_freq"] <= self.df["log_freq_max"]).all())
+
+    def test_independent_prefit_summary_matches_prepared_data(self):
+        coded = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "../data/coded_output.csv")
+        )
+        expected = model_observation_summary(reshape(coded)).set_index("marking_type")
+        actual = (
+            self.df.groupby("marking_type")["has_levelled"]
+            .agg(observations="count", leveled="sum")
+        )
+        self.assertEqual(int(actual.loc["vowel_unipartite", "observations"]), 6707)
+        self.assertEqual(int(actual.loc["vowel_unipartite", "leveled"]), 188)
+        self.assertEqual(int(actual.loc["vowel_bipartite", "observations"]), 803)
+        self.assertEqual(int(actual.loc["vowel_bipartite", "leveled"]), 12)
+        pd.testing.assert_frame_equal(
+            actual.sort_index(),
+            expected.loc[["vowel_bipartite", "vowel_unipartite"],
+                         ["observations", "leveled"]].sort_index(),
+            check_dtype=False,
+        )
 
 
 class TestConsonantAnalysis(unittest.TestCase):

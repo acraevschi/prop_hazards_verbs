@@ -1,0 +1,24 @@
+predictor,level,n,mean,sd,min,median,max
+date,numeric summary,7510,1259.2531291611185,110.5425245197037,1033.0,1233.0,1542.0
+log_freq,numeric summary,7510,-1.6665541161835264,1.6888804758914493,-7.77089969139063,-1.54122181171501,1.49772611590755
+log_token_freq,numeric summary,7510,-4.027910785882949,1.5927671337905998,-7.66014799048956,-4.12856185110778,-0.140614678045866
+log_alt_pres_freq,numeric summary,7510,2.770175620192576,0.9950170880945779,0.0,3.09104245335832,3.71357206670431
+log_alt_past_freq,numeric summary,7510,1.0808161837957089,1.4914003051689926,0.0,0.0,3.46573590279973
+n_tokens,numeric summary,7510,5.3090545938748335,16.664750259860806,1.0,2.0,609.0
+leveled_tokens,numeric summary,7510,0.06950732356857524,0.5350564591227147,0.0,0.0,26.0
+preserved_tokens,numeric summary,7510,5.239547270306258,16.643401211794863,0.0,2.0,608.0
+n_log_freq_values,numeric summary,7510,1.0,0.0,1.0,1.0,1.0
+marking_type,vowel_unipartite,6707,,,,,
+marking_type,vowel_bipartite,803,,,,,
+std_infl,PastSg,4789,,,,,
+std_infl,PastPl,2721,,,,,
+variety,Upper German,4787,,,,,
+variety,Central German,2723,,,,,
+corpus,MHG,5984,,,,,
+corpus,ENHG,1526,,,,,
+has_alt_pres,yes,7449,,,,,
+has_alt_pres,no,61,,,,,
+has_alt_past,no,4681,,,,,
+has_alt_past,yes,2829,,,,,
+lemma_std,source-token support per grouping level,124,321.5403225806452,844.1565030329998,1.0,61.0,8282.0
+document_id,source-token support per grouping level,226,176.4203539823009,382.4754520307104,1.0,73.0,3710.0

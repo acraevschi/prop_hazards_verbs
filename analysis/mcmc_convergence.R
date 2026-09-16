@@ -43,10 +43,21 @@ for (m in models_info) {
   cat(sprintf("Checking model: %s (%s)...\n", m_name, f_path))
   fit <- readRDS(f_path)
   
-  # Extract diagnostics from brms / Stan object
-  stan_fit <- fit$fit
-  divs <- rstan::get_num_divergent(stan_fit)
-  max_td <- rstan::get_num_max_treedepth(stan_fit)
+  # Backend-independent NUTS diagnostics. The provenance sidecar records the
+  # configured treedepth; an assumed value can misreport another run.
+  nuts <- brms::nuts_params(fit)
+  divs <- sum(nuts$Value[nuts$Parameter == "divergent__"])
+  provenance_path <- sub("\\.rds$", ".provenance.csv", f_path)
+  provenance <- if (file.exists(provenance_path)) read.csv(provenance_path) else NULL
+  treedepth_setting <- if (!is.null(provenance)) provenance$max_treedepth[1] else NA_integer_
+  treedepths <- nuts$Value[nuts$Parameter == "treedepth__"]
+  max_td <- if (is.na(treedepth_setting)) NA_integer_ else sum(treedepths >= treedepth_setting)
+  energy <- nuts[nuts$Parameter == "energy__", ]
+  ebfmi <- if (nrow(energy) > 0) {
+    sapply(split(energy$Value, energy$Chain), function(x) mean(diff(x)^2) / var(x))
+  } else {
+    NA_real_
+  }
   
   # R-hat diagnostics
   rhats <- brms::rhat(fit)
@@ -68,6 +79,8 @@ for (m in models_info) {
     Min_Bulk_ESS = round(min_bulk, 0),
     Min_Tail_ESS = round(min_tail, 0),
     Divergences = divs,
+    Min_EBFMI = round(min(ebfmi, na.rm = TRUE), 3),
+    Max_Treedepth_Setting = treedepth_setting,
     Max_Treedepth_Hits = max_td,
     stringsAsFactors = FALSE
   )
@@ -98,6 +111,7 @@ build_interpretation <- function(df, pct_rhat, draws) {
   div_lo <- min(df$Divergences)
   div_hi <- max(df$Divergences)
   td_models <- df$Model[df$Max_Treedepth_Hits > 0]
+  ebfmi_models <- df$Model[df$Min_EBFMI < 0.3]
 
   lines <- c("> **Interpretation**:")
 
@@ -118,7 +132,7 @@ build_interpretation <- function(df, pct_rhat, draws) {
   })
 
   lines <- c(lines, if (div_hi == 0) {
-    "> - No divergent transitions occurred under `adapt_delta = 0.99`."
+    "> - No divergent transitions occurred. The resolved sampler settings are recorded with each fit."
   } else {
     sprintf("> - Divergent transitions range from %d to %d per model under `adapt_delta = 0.99`, out of %s post-warmup draws.",
             div_lo, div_hi,
@@ -128,10 +142,17 @@ build_interpretation <- function(df, pct_rhat, draws) {
 
   if (length(td_models) > 0) {
     lines <- c(lines, sprintf(
-      "> - %s hit the maximum treedepth of 10. This costs sampling efficiency, but it does not bias the posterior, and the $\\hat{R}$ and ESS values for %s stay within the thresholds above.",
+      "> - %s hit its configured maximum treedepth. This costs sampling efficiency; inspect the count together with $\\hat{R}$ and ESS before using %s.",
       paste(td_models, collapse = ", "),
       if (length(td_models) == 1) "that model" else "those models"))
   }
+
+  lines <- c(lines, if (length(ebfmi_models) == 0) {
+    "> - Every chain-level E-BFMI value is at least 0.3."
+  } else {
+    sprintf("> - E-BFMI falls below 0.3 in %s; inspect energy exploration before using those fits.",
+            paste(ebfmi_models, collapse = ", "))
+  })
 
   paste0(paste(lines, collapse = "\n"), "\n")
 }
@@ -149,7 +170,7 @@ md_content <- paste0(
       res_df,
       format = "pipe",
       row.names = FALSE,
-      col.names = c("Model", "Max $\\hat{R}$", "$\\hat{R} \\le 1.01$ (%)", "Min Bulk-ESS", "Min Tail-ESS", "Divergences", "Max Treedepth Hits")
+      col.names = c("Model", "Max $\\hat{R}$", "$\\hat{R} \\le 1.01$ (%)", "Min Bulk-ESS", "Min Tail-ESS", "Divergences", "Min E-BFMI", "Treedepth Setting", "Max Treedepth Hits")
     ),
     collapse = "\n"
   ),

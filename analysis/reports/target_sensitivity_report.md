@@ -1,68 +1,41 @@
-# Target State Sensitivity Analysis Report: Double Robustness Check
+# Target-Definition Sensitivity Audit
 
-## Quick Overview in Simple Words
+The production endpoint uses a curated modern German form where available and
+the latest usable ENHG date as fallback. Both alternatives keep curated modern
+targets fixed and change only the corpus fallback: either require corpus rows
+dated at least 1500, or use those rows when available and fall back
+per tense to the latest corpus date.
 
-`target_sensitivity.py` checks whether our definition of the "end state" (the modern leveled form of each verb) is biased by how late in history a verb happened to be written down. It proves that restricting our end-state definition only to very late texts (after 1500) results in **100% identical labeling** for whether a verb leveled or not, confirming our results do not depend on document dates.
+Outcome agreement and direct target identity are different quantities. Outcome
+agreement is reported only among observations codable under both definitions;
+the production-only, alternative-only, and neither-codable counts keep that
+conditional denominator visible.
 
----
+## Outcome coding
 
-## Conceptual Motivation & Background
+| comparison | element | all_coded_rows | production_codable | alternative_codable | codable_in_both | production_only | alternative_only | neither_codable | concordant_labels | discordant_labels | flips_0_to_1 | flips_1_to_0 | outcome_agreement_pct_among_both |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| strict corpus date >= 1500 | Vowels | 47,248 | 38,291 | 38,291 | 38,291 | 0 | 0 | 8,957 | 38,291 | 0 | 0 | 0 | 100.000 |
+| strict corpus date >= 1500 | Consonants | 47,248 | 1,502 | 1,502 | 1,502 | 0 | 0 | 45,746 | 1,502 | 0 | 0 | 0 | 100.000 |
+| late corpus with per-tense fallback | Vowels | 47,248 | 38,291 | 38,291 | 38,291 | 0 | 0 | 8,957 | 38,291 | 0 | 0 | 0 | 100.000 |
+| late corpus with per-tense fallback | Consonants | 47,248 | 1,502 | 1,502 | 1,502 | 0 | 0 | 45,746 | 1,502 | 0 | 0 | 0 | 100.000 |
 
-A central methodological requirement in quantitative diachronic morphology is defining the "teleological target" of paradigm change:
+## Direct target identity
 
-1. **The Teleological Target Problem**:
-   - To assess whether a historical verb token in the corpus has undergone analogical leveling (coded as `has_levelled = 1`), its phonological shape (vocalic nucleus and coda consonant) must be compared against the ultimate morphological endpoint reached by that verb's paradigm by the culmination of the Early New High German (ENHG) period (~1650 CE).
-   - In our primary analysis pipeline, this endpoint is operationalized empirically by isolating each lemma family's chronologically latest attestations in the ENHG corpus (`max(date)`) within each dialect region, and extracting the modal root vowel and coda for both the Present and Past tense subparadigms.
+The denominator here is every lemma-variety group in the normalized corpus,
+including groups where one or both definitions do not resolve the component.
 
-2. **Potential Sensitivity to Document Dating**:
-   - Because textual survival across the medieval and early modern transition is heterogeneous, some lemma families have their latest attestations dated to the 15th century (e.g. 1400–1450 CE), while others are richly attested into the late 16th century (1550–1650 CE).
-   - A potential concern is whether establishing targets using `max(date)` for verbs whose texts cease earlier in ENHG could capture an incomplete or intermediate transitional state, thereby distorting the binary leveling classifications.
+| comparison | target_component | all_lemma_variety_groups | production_resolved | alternative_resolved | resolved_in_both | production_only | alternative_only | neither_resolved | identical_targets | different_targets | direct_target_agreement_pct_among_both |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| strict corpus date >= 1500 | target_vowel_pres | 531 | 406 | 406 | 406 | 0 | 0 | 125 | 406 | 0 | 100.000 |
+| strict corpus date >= 1500 | target_coda_pres | 531 | 406 | 406 | 406 | 0 | 0 | 125 | 406 | 0 | 100.000 |
+| strict corpus date >= 1500 | target_vowel_past | 531 | 400 | 398 | 398 | 2 | 0 | 131 | 398 | 0 | 100.000 |
+| strict corpus date >= 1500 | target_coda_past | 531 | 400 | 398 | 398 | 2 | 0 | 131 | 398 | 0 | 100.000 |
+| late corpus with per-tense fallback | target_vowel_pres | 531 | 406 | 406 | 406 | 0 | 0 | 125 | 406 | 0 | 100.000 |
+| late corpus with per-tense fallback | target_coda_pres | 531 | 406 | 406 | 406 | 0 | 0 | 125 | 406 | 0 | 100.000 |
+| late corpus with per-tense fallback | target_vowel_past | 531 | 400 | 400 | 400 | 0 | 0 | 131 | 400 | 0 | 100.000 |
+| late corpus with per-tense fallback | target_coda_past | 531 | 400 | 400 | 400 | 0 | 0 | 131 | 400 | 0 | 100.000 |
 
-3. **Double Robustness Design**:
-   - To empirically verify that our statistical modeling is invariant to target dating cutoffs, this diagnostic executes a **Double Robustness Check**:
-     - **Variant 1 (Strict Late Subset, date >= 1500)**: Evaluates only lemmas attested in late texts composed in or after 1500 CE (by which time ENHG printing conventions and standard morphological systems had largely stabilized). Lemmas without post-1500 attestations are excluded from this strict comparison.
-     - **Variant 2 (Hybrid Fallback, date >= 1500 with max(date) fallback)**: Extracts targets from post-1500 texts whenever available, and automatically falls back to `max(date)` for verbs whose attestations end before 1500.
+No percentage in either table is presented as agreement over the missing rows.
 
----
-
-## 1. Token-Level Leveling Outcome Concordance Summary
-
-| Comparison Regime | Morphological Element | Overlapping Observations | Concordant Labels | Discordant Labels | Concordance Rate (%) | Label Flips (0 -> 1) | Label Flips (1 -> 0) |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Hybrid Fallback vs Baseline** | `Vowels` | 35,564 | 35,564 | 0 | **100.00%** | 0 | 0 |
-| **Hybrid Fallback vs Baseline** | `Consonants` | 1,298 | 1,298 | 0 | **100.00%** | 0 | 0 |
-| **Strict (>=1500) vs Baseline** | `Vowels` | 35,148 | 35,148 | 0 | **100.00%** | 0 | 0 |
-| **Strict (>=1500) vs Baseline** | `Consonants` | 1,272 | 1,272 | 0 | **100.00%** | 0 | 0 |
-
----
-
-## 2. Target Morphology Consistency Across Lemma Families
-
-This table evaluates the direct phonological agreement between target vowels/codas extracted via `max(date)` versus the late-text hybrid definition (`date >= 1500`):
-
-| Target Slot | Total Evaluated Groups (Lemma x Variety) | Valid in Both Regimes | Identical Phonological Targets | Target Agreement Rate (%) |
-| :--- | :---: | :---: | :---: | :---: |
-| **Past Tense Vowel Target** | 343 | 112 | 63 | **56.25%** |
-| **Past Tense Coda Target** | 343 | 112 | 87 | **77.68%** |
-| **Present Tense Vowel Target** | 343 | 270 | 195 | **72.22%** |
-| **Present Tense Coda Target** | 343 | 270 | 214 | **79.26%** |
-
-> **Notes on Target Agreement**:
-> - Across all slots where both definitions yield an extracted target, agreement exceeds 91% to 100%.
-> - The minor differences in extracted target vowels reflect minor dialectal spelling variations in late manuscripts (e.g. *ei* vs. *ey* or *u* vs. *v*) which are fully resolved by our phonological equivalence sets and sound-change filters.
-> - As a result, when applied to token-level outcome coding in Section 1, **100.00% of all binary leveling decisions (`has_levelled`) are identical** across both methods.
-
----
-
-## 3. Methodological Implications & Robustness Confirmation
-
-1. **Perfect Label Concordance (100.0%)**:
-   - Restricting the teleological target to late texts (date >= 1500) yields **100% agreement** with the baseline `max(date)` definition across all analyzed tokens.
-   - Zero observations flip their leveling classification (0 -> 1 or 1 -> 0).
-2. **Stability of the ENHG Target**:
-   - The morphological endpoints reached by High German strong verbs in the ENHG period were already stabilized in the latest texts of each lemma family, meaning that the `max(date)` heuristic accurately captures the true teleological target without introducing dating artifacts.
-3. **Double Robustness**:
-   - Both the strict subset (>= 1500 only) and the hybrid fallback model demonstrate identical outcome classifications, confirming that our statistical modeling results are robust against variation in target definition.
-
----
-*Report generated automatically by `analysis/target_sensitivity.py`.*
+*Generated by `analysis/target_sensitivity.py`.*

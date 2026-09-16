@@ -11,7 +11,7 @@ Hermann Paul (1886) hypothesized that paradigms characterized by multiplexed/red
 This project implements:
 1. **Automated Cross-Corpus Lemma Linking**: Unifying lemmas across ReM (MHG) and ReF (ENHG) using DWDS etymological scraping, candidate ranking, and a Disjoint Set Union (DSU) graph algorithm.
 2. **Lemma-Guided Root Extraction**: Parsing normalized historical orthography to isolate root vocalic nuclei and consonantal codas without erroneously stripping roots or structural consonants. Prefix segmentation is read off the corpus's own lemma strings, where ReM marks a prefix with a hyphen (`ge-winnen`) and leaves a bare stem unmarked (`gëben`); ENHG rows inherit the analysis through `lemma_id`. Phonotactic guards remain as a fallback for the lemmas ReM does not cover.
-3. **Diachronic Baseline & Leveling Coding**: Setting pre-1200 MHG baselines and ENHG teleological targets per dialect variety while filtering regular dialect sound changes.
+3. **Diachronic Baseline & Leveling Coding**: Setting MHG baselines from observations dated 1200 or earlier and ENHG teleological targets per dialect variety while filtering regular dialect sound changes.
 4. **Bayesian Generalized Additive Mixed Modeling (GAMM)**: Estimating non-linear diachronic trajectories and interactive tensor products of time and frequency using `brms` and Stan.
 
 ---
@@ -42,7 +42,7 @@ prop_hazards_verbs/
 │   ├── dialect_mapping.json / date_mapping.json
 │   ├── extract_nhg_preterites.py            <- Step 3b: Modern preterites from UniMorph (deu), pinned commit
 │   ├── build_nhg_targets.py                 <- Step 3c: Assemble modern infinitive/preterite targets per lemma_id
-│   ├── corpus_approach_coding.py            <- Step 4: Root extraction, pre-1200 baseline & leveling coding
+│   ├── corpus_approach_coding.py            <- Step 4: Root extraction, baseline through 1200 & leveling coding
 │   ├── vowel_changes.csv                    <- Dialect-specific sound change dictionary
 │   ├── combined_corpus.csv / combined_normalized_corpus.csv
 │   └── coded_output.csv                     <- Coded dataset for statistical modeling
@@ -135,7 +135,7 @@ for those.*
 
 ### Stage 4: Root Extraction, Baselines & Leveling Coding
 ```bash
-# Extract roots, calculate pre-1200 anchors, and code leveling outcomes
+# Extract roots, calculate anchors from date <= 1200, and code leveling outcomes
 python data/corpus_approach_coding.py
 ```
 
@@ -160,7 +160,7 @@ Three decisions in this stage are worth knowing before reading any number that c
    - **Outputs**: `analysis/reports/consonant_analysis_report.md`, `analysis/reports/consonant_summary.csv`, `analysis/reports/consonant_lemma_breakdown.csv`, and `analysis/reports/consonant_paired_discordance.csv`.
 
 2. **Anchor & Target Attrition Diagnostics** (`analysis/attrition_diagnostics.py`):
-   - **Purpose**: Audits the longitudinal data pipeline from raw texts (~1050–1650) to the final GAMM dataset.
+   - **Purpose**: Audits mapping, frequency, missing-metadata, anchor-support, target-source, document, and predictor attrition from the raw texts to the GAMM dataset. Its sound-change count calls the same protected-contrast helper as production coding.
    - **Command**:
      ```bash
      python analysis/attrition_diagnostics.py
@@ -168,7 +168,7 @@ Three decisions in this stage are worth knowing before reading any number that c
    - **Outputs**: `analysis/reports/attrition_report.md` and `analysis/reports/attrition_summary.csv`.
 
 3. **Marking-Type Summary** (`analysis/marking_type_summary.py`):
-   - **Purpose**: Reports the `marking_type` counts, the bipartite leveling rate by period, and how the bipartite events are distributed over lemmas, without fitting anything.
+   - **Purpose**: Reports marking and contrast-specific counts, per-lemma event concentration, the three *lîhen*/weak-anchor scenarios, and rejected-modern-variant sensitivity without fitting anything.
    - **Command**:
      ```bash
      python analysis/marking_type_summary.py
@@ -176,7 +176,7 @@ Three decisions in this stage are worth knowing before reading any number that c
      ```
 
 4. **Target State Sensitivity Analysis (Double Robustness Check)** (`analysis/target_sensitivity.py`):
-   - **Purpose**: Verifies that the operationalization of each verb's teleological target state (its morphological endpoint by the end of ENHG) is not biased by varying document survival dates.
+   - **Purpose**: Compares the production modern-first target with strict late-corpus and per-tense fallback definitions, keeping missing targets, direct target identity, codability, and shared-subset outcome agreement separate.
    - **Command**:
      ```bash
      python analysis/target_sensitivity.py
@@ -188,29 +188,28 @@ Three decisions in this stage are worth knowing before reading any number that c
 Once the data is verified and coded:
 
 1. **Fit Bayesian GAMM Models** (`analysis/run_brms.R`):
-   - Fits 6 Bayesian Generalized Additive Mixed Models using `brms` and Stan on the **vowel-only** dataset with `vowel_unipartite` as the reference baseline ($\beta_0$).
+   - Fits 6 Bayesian Generalized Additive Mixed Models using `brms` and Stan on the **vowel-only** dataset with `vowel_unipartite` as the reference baseline ($\beta_0$). Repeated identical outcomes are removed explicitly by `document_id × lemma_id × std_infl × has_levelled`. A mixed cell contributes one preserved and one leveled Bernoulli row; underlying token counts are retained for audit but do not weight the likelihood.
    - Serializes and saves the fitted model objects (`.rds`) directly into the `fits/` folder, with LOO-CV attached.
    - **CLI Options**:
      ```bash
     # Dry-run validation (checks stancode & data without sampling):
     Rscript analysis/run_brms.R --dry-run
 
-    # Rebuild and validate analysis/data_for_analysis.csv without constructing or fitting models:
+    # Rebuild and validate the document-lemma-slot analysis table without Stan:
     Rscript analysis/run_brms.R --prepare-only
 
      # Fast test run (2 chains, small iterations):
      Rscript analysis/run_brms.R --test
 
-     # Full production run (4 chains, 16 total CPU threads).
-     # This is the exact command the committed fits were made with. Note that
-     # --max_treedepth defaults to 10 in the script, so pass 12 explicitly to
-     # reproduce them; the seed only reproduces a fit under static threading.
-     Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 4 --threads 4 --seed 97 --adapt_delta 0.99 --max_treedepth 12
+     # Full production run (4 chains x 4 within-chain threads = 16 CPU threads).
+     # Iterations, warmup, seed, adapt_delta, and treedepth use printed defaults.
+     # Empty fits/ first, or pass --overwrite, so an earlier fit cannot load.
+     Rscript analysis/run_brms.R --chains 4 --cores 4 --threads 4
      ```
 
 2. **MCMC Convergence Diagnostics** (`analysis/mcmc_convergence.R`):
    - Audits Stan sampler health across all 6 fitted models in `fits/` to verify reliable posterior exploration.
-   - Evaluates: $\max(\hat{R})$, percentage of parameters with $\hat{R} \le 1.01$, minimum Bulk-ESS, minimum Tail-ESS, divergent transitions, and maximum treedepth hits.
+   - Evaluates: $\max(\hat{R})$, percentage of parameters with $\hat{R} \le 1.01$, minimum Bulk-ESS, minimum Tail-ESS, divergent transitions, E-BFMI, and hits at each fit's recorded treedepth.
    - **Command**:
      ```bash
      Rscript analysis/mcmc_convergence.R
@@ -254,7 +253,7 @@ nor target, so they are coded `NA` rather than as leveling events.
 `step_2_establish_baseline` separates grammatischer Wechsel from
 Auslautverhärtung by paradigm shape: Verner leaves the past plural as the odd
 cell, devoicing leaves the past singular as the odd cell. When the cell that
-decides the shape has no pre-1200 anchor, the test cannot run, and the paradigm
+decides the shape has no anchor dated 1200 or earlier, the test cannot run, and the paradigm
 is left unipartite rather than admitted on an untested assumption.
 
 **Size**: this costs *sièden* and *nîden* Central German, both of which lack a
@@ -280,7 +279,7 @@ contribute rows at both levels of `marking_type`.
 
 ### 4. Verbs first attested in ReF have no start state
 
-The baseline requires a pre-1200 MHG anchor, so a lemma_id that appears only in
+The baseline requires an MHG anchor dated 1200 or earlier, so a lemma_id that appears only in
 ReF is dropped whatever its modern reflex.
 
 **Size**: 63 lemma_ids, 8,449 tokens. Most are weak verbs irrelevant to the
@@ -305,16 +304,18 @@ into Modern German.**
 **Size**: 64 lemma-variety groups now receive a carried target, including
 *kiesen* (a Verner verb, 406 MHG tokens) and *heizen* (2,817 tokens).
 
-### 6. A paradigm's start state can rest on very few pre-1200 tokens
+### 6. A paradigm's start state can rest on very few tokens dated 1200 or earlier
 
 `step_2_establish_baseline` takes the modal vowel and coda per lemma, variety and
 inflectional slot, with no minimum on how many tokens stand behind the mode, and
 `pd.Series.mode(x)[0]` breaks a tie on sort order. The target side records its
 support in `target_pres_n` / `target_past_n`; the anchor side records none.
 
-**Size**: 209 of 1,176 anchor cells rest on a single token, and 7 cells across 5
+**Size**: 160 of 954 study-slot anchor cells rest on a single token. The count
+uses present, past singular, and past plural only; the participle does not enter
+the study's contrasts. Seven cells across 5
 lemmas are outright ties. The consequential case is *ver-lîhen*, whose Central
-German paradigm is built from three pre-1200 tokens (past singular *e*/*χ* ×1
+German paradigm is built from three tokens dated 1200 or earlier (past singular *e*/*χ* ×1
 against *u*/*w* ×1, past plural *u*/*w* ×1) while Upper German has 14 tokens all
 reading *e*/*χ*. Central German therefore anchors on *w*, which makes the
 attested past singulars *lêch* / *verlêch* count as leveled. It supplies 3 of the
@@ -327,7 +328,7 @@ scribal error. The tie-break landed on the historically correct anchor.
 
 The verb is nevertheless bipartite in Central German and unipartite in Upper
 German, because the *w*-alternant is simply unattested in the Upper German
-pre-1200 material. That split is **not** treated as a defect to be repaired. The
+material dated 1200 or earlier. That split is **not** treated as a defect to be repaired. The
 unit of the treatment variable is the paradigm as attested in a variety, not the
 verb as reconstructed: Paul's Principle is a claim about cognitive resistance, so
 the input that matters is what a speaker was exposed to. An Upper German speaker

@@ -4,17 +4,15 @@ Marking-type summary, straight from data/coded_output.csv.
 
 Why this exists
 ---------------
-The marking_type counts that everybody quotes - 1,622/13, 884/65, and so on - are
-computed inside analysis/run_brms.R, which also fits six Stan models and takes
-about six hours. So the one table you want after every change to the coding is
-locked behind the one step you cannot afford to run, and any number reported
-without it is somebody's undocumented re-derivation.
+The marking_type and explicit model-observation counts should be available
+before a Stan run begins. This script reproduces the reshape, audits the chosen
+deduplication key, and writes the tables used to approve a production run.
 
 This script does the reshape and nothing else. It is a faithful port of the
 "2. Reshaping & Predictor Construction" block of run_brms.R (lines ~270-345):
 same vowel_leveled_any / cons_leveled_any collapse, same two filters, same long
-pivot, same marking_type construction, and the same token-identity validation. It writes
-nothing the pipeline reads, so it cannot disturb the fits.
+pivot, same marking_type construction, and the same token-identity validation.
+It writes reports only, so it cannot disturb the fits.
 
 If run_brms.R's reshape changes, this port has to change with it. The row count
 it reports should equal the "Prepared N modeling observations" line that
@@ -22,9 +20,11 @@ run_brms.R prints.
 
 What it prints
 --------------
-1. The marking_type table: observations, leveling events, rate.
-2. Bipartite vowel leveling by period, which is where the S-curve claim lives.
-3. Per-lemma contribution to the bipartite vowel events. Read this one. The
+1. The source-token marking_type table: observations, leveling events, rate.
+2. The explicit GAMM table after
+   `document_id × lemma_id × std_infl × has_levelled` deduplication.
+3. Bipartite vowel leveling by period, which is where the S-curve claim lives.
+4. Per-lemma contribution to the bipartite vowel events. Read this one. The
    bipartite cell is small enough that a single lemma can carry it, and a rate
    that rests on one verb is a different claim from a rate that rests on twenty.
 
@@ -59,9 +59,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 CODED = "data/coded_output.csv"
 TARGETS = "data/lemmas/nhg_targets.csv"
+REPORT_DIR = "analysis/reports"
+SUMMARY_OUT = f"{REPORT_DIR}/marking_type_summary.csv"
+REPORT_OUT = f"{REPORT_DIR}/marking_type_report.md"
 
 MARKING_ORDER = ["vowel_unipartite", "vowel_bipartite", "consonant_bipartite"]
 PERIODS = [(1050, 1200), (1200, 1350), (1350, 1500), (1500, 1650)]
+MODEL_KEY = ["document_id", "lemma_id", "std_infl"]
 
 
 def _leveled_any(a, b):
@@ -198,6 +202,208 @@ def marking_table(long):
     return rows
 
 
+def marking_frame(long):
+    return pd.DataFrame(
+        marking_table(long),
+        columns=["marking_type", "observations", "leveled", "leveling_pct"],
+    )
+
+
+def model_observation_frame(long):
+    """Apply the explicit GAMM deduplication key to vowel outcomes.
+
+    Repeated tokens with the same outcome inside a document-lemma-slot cell do
+    not add likelihood weight. A mixed cell contributes one preserved and one
+    leveled Bernoulli row, irrespective of how many tokens realize each state.
+    Token counts are retained only for audit.
+    """
+    vowel = long[long["marking_type"].isin(
+        ["vowel_unipartite", "vowel_bipartite"]
+    )].copy()
+    varying_marking = vowel.groupby(MODEL_KEY)["marking_type"].nunique()
+    if (varying_marking > 1).any():
+        raise ValueError("A document-lemma-slot cell has more than one marking type")
+
+    counts = (
+        vowel.groupby(MODEL_KEY)
+        .agg(
+            source_tokens=("has_levelled", "size"),
+            leveled_tokens=("has_levelled", "sum"),
+            marking_type=("marking_type", "first"),
+            lemma=("lemma", "first"),
+        )
+        .reset_index()
+    )
+    counts["preserved_tokens"] = counts["source_tokens"] - counts["leveled_tokens"]
+    rows = (
+        vowel.drop_duplicates(MODEL_KEY + ["has_levelled"])
+        [MODEL_KEY + ["has_levelled"]]
+        .merge(counts, on=MODEL_KEY, how="left", validate="many_to_one")
+    )
+    rows["model_row_id"] = (
+        rows["document_id"].astype(str) + "|"
+        + rows["lemma_id"].astype(str) + "|"
+        + rows["std_infl"].astype(str) + "|"
+        + rows["has_levelled"].astype(str)
+    )
+    if rows["model_row_id"].duplicated().any():
+        raise ValueError("Explicit document-lemma-slot-outcome key is not unique")
+    return rows
+
+
+def model_observation_summary(long):
+    rows = model_observation_frame(long)
+    summary = (
+        rows.groupby("marking_type")["has_levelled"]
+        .agg(observations="count", leveled="sum")
+        .reindex(["vowel_unipartite", "vowel_bipartite"])
+        .reset_index()
+    )
+    summary["preserved"] = summary["observations"] - summary["leveled"]
+    summary["leveling_pct"] = 100 * summary["leveled"] / summary["observations"]
+    total = pd.DataFrame(
+        [{
+            "marking_type": "total",
+            "observations": int(summary["observations"].sum()),
+            "leveled": int(summary["leveled"].sum()),
+            "preserved": int(summary["preserved"].sum()),
+            "leveling_pct": 100 * summary["leveled"].sum() / summary["observations"].sum(),
+        }]
+    )
+    return pd.concat([summary, total], ignore_index=True)
+
+
+def model_event_concentration(long):
+    rows = model_observation_frame(long)
+    bipartite = rows[rows["marking_type"] == "vowel_bipartite"]
+    out = (
+        bipartite.groupby(["lemma_id", "lemma"])["has_levelled"]
+        .agg(observations="count", leveled="sum")
+        .reset_index()
+        .sort_values(["leveled", "observations"], ascending=False)
+    )
+    total = out["leveled"].sum()
+    out["share_of_events_pct"] = 100 * out["leveled"] / total if total else 0.0
+    return out
+
+
+def period_frame(long):
+    sub = long[(long["marking_type"] == "vowel_bipartite") & long["date"].notna()]
+    rows = []
+    for lo, hi in PERIODS:
+        window = sub[(sub["date"] >= lo) & (sub["date"] < hi)]
+        rows.append(
+            {
+                "period": f"[{lo}, {hi})",
+                "observations": len(window),
+                "leveled": int(window["has_levelled"].sum()),
+                "leveling_pct": 100 * window["has_levelled"].mean() if len(window) else 0.0,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def concentration_frame(long):
+    sub = long[long["marking_type"] == "vowel_bipartite"]
+    out = (
+        sub.groupby(["lemma_id", "lemma"])["has_levelled"]
+        .agg(observations="count", leveled="sum")
+        .reset_index()
+        .sort_values(["leveled", "observations"], ascending=False)
+    )
+    total = out["leveled"].sum()
+    out["share_of_events_pct"] = 100 * out["leveled"] / total if total else 0.0
+    return out
+
+
+def channel_frame(coded_path):
+    df = pd.read_csv(coded_path, low_memory=False)
+    _validate_token_identity(df, coded_path)
+    for col in ("is_leveled_vowel_pres", "is_leveled_vowel_past",
+                "is_leveled_cons_pres", "is_leveled_cons_past", "is_bipartite"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df[df["is_bipartite"].notna()]
+    rows = []
+    channels = [
+        ("is_leveled_vowel_past", "vowel (past sg ~ past pl)", (0, 1)),
+        ("is_leveled_vowel_pres", "vowel (pres ~ past)", (0, 1)),
+        ("is_leveled_cons_past", "cons (past sg ~ past pl)", (1,)),
+        ("is_leveled_cons_pres", "cons (pres ~ past)", (1,)),
+    ]
+    names = {0: "unipartite", 1: "bipartite"}
+    for column, channel, markings in channels:
+        present = df[df[column].notna()]
+        for marking in markings:
+            obs = present[present["is_bipartite"] == marking]
+            rows.append(
+                {
+                    "channel": channel,
+                    "marking": names[marking],
+                    "observations": len(obs),
+                    "leveled": int(obs[column].sum()),
+                    "leveling_pct": 100 * obs[column].mean() if len(obs) else 0.0,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _scenario_row(name, long):
+    model_rows = model_observation_frame(long)
+    bi = model_rows[model_rows["marking_type"] == "vowel_bipartite"]
+    uni = model_rows[model_rows["marking_type"] == "vowel_unipartite"]
+    bi_rate = bi["has_levelled"].mean() if len(bi) else np.nan
+    uni_rate = uni["has_levelled"].mean() if len(uni) else np.nan
+    return {
+        "scenario": name,
+        "bipartite_observations": len(bi),
+        "bipartite_events": int(bi["has_levelled"].sum()),
+        "bipartite_rate_pct": 100 * bi_rate,
+        "unipartite_observations": len(uni),
+        "unipartite_events": int(uni["has_levelled"].sum()),
+        "unipartite_rate_pct": 100 * uni_rate,
+        "unipartite_to_bipartite_rate_ratio": uni_rate / bi_rate if bi_rate else np.nan,
+    }
+
+
+def run_lihen_sensitivity(coded_path, workdir):
+    """Recompute the three documented treatments of the weak lîhen anchor."""
+    from data.corpus_approach_coding import (
+        step_1_preprocessing,
+        step_2_establish_baseline,
+        step_3_establish_targets,
+        step_4_coding_outcome,
+    )
+
+    current = reshape(coded_path)
+    raw = pd.read_csv(coded_path, low_memory=False)
+    lihen = raw.loc[
+        raw["lemma"].fillna("").str.contains("lîhen", regex=False), "lemma_id"
+    ].dropna().unique()
+    if len(lihen) != 1:
+        raise ValueError(f"Expected one lîhen lemma family, found {lihen.tolist()}")
+
+    forced = raw.copy()
+    forced.loc[forced["lemma_id"] == lihen[0], "is_bipartite"] = 1
+    forced_path = os.path.join(workdir, "coded_output_lihen_forced_bipartite.csv")
+    forced.to_csv(forced_path, index=False)
+
+    normalized = pd.read_csv("data/combined_normalized_corpus.csv", dtype=str)
+    processed = step_1_preprocessing(normalized)
+    strict_baseline = step_2_establish_baseline(processed, min_anchor_support=2)
+    targets = step_3_establish_targets(processed)
+    strict_coded = step_4_coding_outcome(processed, strict_baseline, targets)
+    strict_path = os.path.join(workdir, "coded_output_min_anchor_support_2.csv")
+    strict_coded.to_csv(strict_path, index=False)
+
+    return pd.DataFrame(
+        [
+            _scenario_row("as coded", current),
+            _scenario_row("lîhen forced bipartite in both varieties", reshape(forced_path)),
+            _scenario_row("all anchor modes require >=2 agreeing tokens", reshape(strict_path)),
+        ]
+    )
+
+
 def print_marking_table(rows, title):
     print(f"\n{title}")
     print(f"  {'marking_type':<22}{'obs':>8}{'leveled':>10}{'rate':>9}")
@@ -302,6 +508,23 @@ def write_csv(rows, path):
     print(f"\nWrote {path}")
 
 
+def _markdown(frame):
+    columns = list(frame.columns)
+    lines = ["| " + " | ".join(columns) + " |",
+             "| " + " | ".join(":---" for _ in columns) + " |"]
+    for row in frame.itertuples(index=False, name=None):
+        values = []
+        for value in row:
+            if isinstance(value, (int, np.integer)):
+                values.append(f"{value:,}")
+            elif isinstance(value, (float, np.floating)):
+                values.append(f"{value:.4g}" if pd.notna(value) else "NA")
+            else:
+                values.append(str(value).replace("|", "\\|"))
+        lines.append("| " + " | ".join(values) + " |")
+    return "\n".join(lines)
+
+
 def run_sensitivity(workdir):
     """
     Re-run the coding against a target table with every VARIANT_POLICY choice
@@ -344,7 +567,8 @@ def run_sensitivity(workdir):
 def main():
     parser = argparse.ArgumentParser(description="Marking-type summary from coded_output.csv")
     parser.add_argument("--coded", default=CODED, help="coded output to summarise")
-    parser.add_argument("--out", help="also write the marking_type table to this CSV")
+    parser.add_argument("--out", default=SUMMARY_OUT, help="marking_type summary CSV")
+    parser.add_argument("--report", default=REPORT_OUT, help="generated Markdown report")
     parser.add_argument(
         "--sensitivity",
         action="store_true",
@@ -357,12 +581,31 @@ def main():
           f"{long['lemma_id'].nunique()} lemmas from {args.coded}")
     rows = marking_table(long)
     print_marking_table(rows, "Marking type (Overall / OR-collapsed)")
+    model_summary = model_observation_summary(long)
+    model_concentration = model_event_concentration(long)
+    print("\nExplicit GAMM observations: distinct document x lemma x slot x outcome")
+    print(model_summary.to_string(index=False))
     print_channel_breakdown(args.coded)
     print_periods(long)
     print_concentration(long)
 
-    if args.out:
-        write_csv(rows, args.out)
+    summary = marking_frame(long)
+    periods = period_frame(long)
+    concentration = concentration_frame(long)
+    channels = channel_frame(args.coded)
+    os.makedirs(REPORT_DIR, exist_ok=True)
+    summary.to_csv(args.out, index=False)
+    model_summary.to_csv(f"{REPORT_DIR}/model_observation_summary.csv", index=False)
+    model_concentration.to_csv(f"{REPORT_DIR}/model_event_concentration.csv", index=False)
+    periods.to_csv(f"{REPORT_DIR}/marking_type_periods.csv", index=False)
+    concentration.to_csv(f"{REPORT_DIR}/marking_type_lemma_events.csv", index=False)
+    channels.to_csv(f"{REPORT_DIR}/marking_type_channels.csv", index=False)
+
+    with tempfile.TemporaryDirectory(prefix="lihen_sensitivity_") as workdir:
+        lihen = run_lihen_sensitivity(args.coded, workdir)
+    lihen.to_csv(f"{REPORT_DIR}/lihen_sensitivity.csv", index=False)
+
+    rejected = pd.DataFrame()
 
     if args.sensitivity:
         with tempfile.TemporaryDirectory(prefix="marking_sensitivity_") as workdir:
@@ -374,6 +617,60 @@ def main():
             print(f"  {'marking_type':<22}{'obs':>8}{'leveled':>10}")
             for (marking, t0, l0, _), (_, t1, l1, _) in zip(rows, alt_rows):
                 print(f"  {marking:<22}{t1 - t0:>+8,}{l1 - l0:>+10,}")
+            rejected = model_summary.merge(
+                model_observation_summary(alt),
+                on="marking_type",
+                suffixes=("_production", "_rejected_variants")
+            )
+            rejected["observation_difference"] = (
+                rejected["observations_rejected_variants"] - rejected["observations_production"]
+            )
+            rejected["event_difference"] = (
+                rejected["leveled_rejected_variants"] - rejected["leveled_production"]
+            )
+            rejected.to_csv(f"{REPORT_DIR}/rejected_variant_sensitivity.csv", index=False)
+
+    report = f"""# Marking-Type and Target-Variant Audit
+
+Every observation is one source token. The vowel-only model uses the first two
+rows of the marking table; the consonant channel is reported separately.
+
+## Marking types
+
+{_markdown(summary)}
+
+These are source-token channel counts. The GAMM deliberately removes repeated
+instances of the same outcome within a document-lemma-slot cell. The exact
+pre-fit check is:
+
+## Explicit GAMM observations
+
+{_markdown(model_summary)}
+
+## Bipartite events at the GAMM observation unit
+
+{_markdown(model_concentration)}
+
+## Bipartite vowel events by lemma
+
+{_markdown(concentration)}
+
+## lîhen and weak-anchor sensitivity
+
+{_markdown(lihen)}
+
+## Rejected modern variants
+
+{_markdown(rejected) if not rejected.empty else 'Run with `--sensitivity` to regenerate this table.'}
+
+Period and disaggregated contrast counts are stored in
+`marking_type_periods.csv` and `marking_type_channels.csv`.
+
+*Generated by `analysis/marking_type_summary.py`.*
+"""
+    with open(args.report, "w", encoding="utf-8") as handle:
+        handle.write(report)
+    print(f"\nWrote {args.out}, {args.report}, and supporting marking-type tables.")
 
 
 if __name__ == "__main__":

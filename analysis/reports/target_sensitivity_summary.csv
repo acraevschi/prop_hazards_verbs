@@ -1,5 +1,5 @@
-Comparison,Element,Analyzable Pairs,Concordant Labels,Discordant Labels,Concordance Rate (%),Flips 0->1,Flips 1->0
-Hybrid Fallback vs Baseline,Vowels,35564,35564,0,100.00%,0,0
-Hybrid Fallback vs Baseline,Consonants,1298,1298,0,100.00%,0,0
-Strict (>=1500) vs Baseline,Vowels,35148,35148,0,100.00%,0,0
-Strict (>=1500) vs Baseline,Consonants,1272,1272,0,100.00%,0,0
+comparison,element,all_coded_rows,production_codable,alternative_codable,codable_in_both,production_only,alternative_only,neither_codable,concordant_labels,discordant_labels,flips_0_to_1,flips_1_to_0,outcome_agreement_pct_among_both
+strict corpus date >= 1500,Vowels,47248,38291,38291,38291,0,0,8957,38291,0,0,0,100.0
+strict corpus date >= 1500,Consonants,47248,1502,1502,1502,0,0,45746,1502,0,0,0,100.0
+late corpus with per-tense fallback,Vowels,47248,38291,38291,38291,0,0,8957,38291,0,0,0,100.0
+late corpus with per-tense fallback,Consonants,47248,1502,1502,1502,0,0,45746,1502,0,0,0,100.0

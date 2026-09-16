@@ -1,19 +1,19 @@
-Metric Category,Metric,Value
-Lemma Attrition,Raw MHG Unique Lemmas,2945
-Lemma Attrition,Raw ENHG Unique Lemmas,1754
-Lemma Attrition,Unified Lemma Families (DSU),455
-Lemma Attrition,Normalized Lemma Families (>10 tokens),291
-Lemma Attrition,Lemmas Attested Pre-1200 (MHG),222
-Lemma Attrition,Lemmas Successfully Anchored Pre-1200,197
-Lemma Attrition,Lemmas Analyzed in Final GAMM,124
-Token Attrition,Raw Combined Tokens,299631
-Token Attrition,Normalized Strong Verb Tokens,150496
-Token Attrition,Past-Tense Coded Tokens,49616
-Token Attrition,Past-Tense Tokens with Baseline Anchor,48320
-Token Attrition,Past-Tense Tokens Dropped (No Baseline),1296
-Token Attrition,Final Analyzed Rows in GAMM Dataset,17467
-Leveling vs Sound Change,Transitions Explained by Sound Change Dict (Past),7521
-Leveling vs Sound Change,Transitions Explained by Sound Change Dict (Pres),1558
-Leveling vs Sound Change,Total Transitions Filtered as Sound Change,9079
-Leveling vs Sound Change,Genuine Analogical Leveling Events (has_levelled=1),337
-Leveling vs Sound Change,Leveling Resistance Observations (has_levelled=0),17130
+metric_category,metric,value
+join,joined rows,330987
+join,mapped rows,281458
+join,unmapped rows,49529
+normalization,mapped tokens in families with <=10 tokens,588
+normalization,tokens after frequency threshold,280870
+normalization,normalized tokens,142045
+baseline,anchor cells in Pres PastSg PastPl,954
+baseline,one-token anchor cells,160
+baseline,anchored lemma-variety paradigms,381
+coding,coded past tokens,47248
+model,document-lemma-slot-outcome observations,7510
+model,document-lemma-slot cells,7422
+model,vowel token outcomes represented,38291
+model,vowel modeling lemmas,124
+model,vowel modeling documents,226
+sound change,protected past target-anchor exclusions,528
+sound change,protected present target-anchor exclusions,15
+sound change,unprotected counterfactual exclusions,2508

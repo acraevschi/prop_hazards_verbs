@@ -230,6 +230,12 @@ CODA_CLUSTERS = (
 # (gan, stan, schrien).
 SLOTS_WITH_ENDING = {"Pres", "PastPl", "Ppl"}
 
+# The study defines its starting paradigm over the three cells that enter the
+# leveling contrasts. Participles are useful during root extraction, but they
+# are neither a baseline anchor nor an outcome/modeling slot.
+BASELINE_SLOTS = ("Pres", "PastSg", "PastPl")
+BASELINE_MAX_DATE = 1200
+
 
 def load_sound_changes(filepath="data/vowel_changes.csv"):
     """
@@ -320,7 +326,7 @@ def are_cons_equivalent(c1, c2, protected=None):
     (i.e., NOT Grammatischer Wechsel).
 
     `protected` works as in are_vowels_equivalent: a contrast that the paradigm
-    carries in its own pre-1200 baseline is never equated away.
+    carries in its own baseline dated 1200 or earlier is never equated away.
     """
     if pd.isna(c1) or pd.isna(c2):
         return False
@@ -344,7 +350,7 @@ def are_vowels_equivalent(v1, v2, variety, sc_dict, protected=None):
     is a regular sound change in the given variety.
 
     `protected` holds the contrasts that the paradigm carries in its own
-    pre-1200 baseline, as a set of frozensets. A regular sound change must not
+    baseline dated 1200 or earlier, as a set of frozensets. A regular sound change must not
     explain away a contrast that the baseline already established.
 
     This guard is necessary because root extraction discards vowel length. MHG
@@ -384,6 +390,83 @@ def are_vowels_equivalent(v1, v2, variety, sc_dict, protected=None):
         return True
 
     return False
+
+
+def baseline_contrast_context(row, infl):
+    """Return the anchors, contrast flags, and protected pairs used by coding.
+
+    The sound-change audit imports this helper. Keeping the construction here,
+    next to the production coder, prevents diagnostics from silently measuring
+    an unprotected counterfactual instead of the rule that assigns outcomes.
+    """
+    anchor_pres_v = row.get("anchor_vowel_pres")
+    anchor_pres_c = row.get("anchor_coda_pres")
+
+    if infl == "PastSg":
+        anchor_self_v = row.get("anchor_vowel_pastsg")
+        anchor_self_c = row.get("anchor_coda_pastsg")
+        anchor_other_v = row.get("anchor_vowel_pastpl")
+        anchor_other_c = row.get("anchor_coda_pastpl")
+        hist_diff_v_pres = row.get("diff_vowel_pres_pastsg")
+        hist_diff_c_pres = row.get("diff_cons_pres_pastsg")
+    elif infl == "PastPl":
+        anchor_self_v = row.get("anchor_vowel_pastpl")
+        anchor_self_c = row.get("anchor_coda_pastpl")
+        anchor_other_v = row.get("anchor_vowel_pastsg")
+        anchor_other_c = row.get("anchor_coda_pastsg")
+        hist_diff_v_pres = row.get("diff_vowel_pres_pastpl")
+        hist_diff_c_pres = row.get("diff_cons_pres_pastpl")
+    else:
+        raise ValueError(f"Baseline contrast context requires PastSg or PastPl, got {infl!r}")
+
+    hist_diff_v_other = row.get("diff_vowel_pastsg_pastpl")
+    hist_diff_c_other = row.get("diff_cons_pastsg_pastpl")
+
+    def build_protected(pairs):
+        out = set()
+        for first, second, differs in pairs:
+            if differs is not True:
+                continue
+            if pd.isna(first) or pd.isna(second):
+                continue
+            first, second = str(first), str(second)
+            if first != second:
+                out.add(frozenset((first, second)))
+        return out
+
+    def last_char(value):
+        if pd.isna(value):
+            return value
+        text = str(value).lower()
+        return text[-1] if len(text) > 1 else text
+
+    protected_v = build_protected(
+        [
+            (anchor_pres_v, anchor_self_v, hist_diff_v_pres),
+            (anchor_self_v, anchor_other_v, hist_diff_v_other),
+        ]
+    )
+    protected_c = build_protected(
+        [
+            (last_char(anchor_pres_c), last_char(anchor_self_c), hist_diff_c_pres),
+            (last_char(anchor_self_c), last_char(anchor_other_c), hist_diff_c_other),
+        ]
+    )
+
+    return {
+        "anchor_pres_v": anchor_pres_v,
+        "anchor_pres_c": anchor_pres_c,
+        "anchor_self_v": anchor_self_v,
+        "anchor_self_c": anchor_self_c,
+        "anchor_other_v": anchor_other_v,
+        "anchor_other_c": anchor_other_c,
+        "hist_diff_v_pres": hist_diff_v_pres,
+        "hist_diff_c_pres": hist_diff_c_pres,
+        "hist_diff_v_other": hist_diff_v_other,
+        "hist_diff_c_other": hist_diff_c_other,
+        "protected_v": protected_v,
+        "protected_c": protected_c,
+    }
 
 
 def clean_form(form):
@@ -811,24 +894,36 @@ def step_1_preprocessing(df, lemma_index=None):
     return df
 
 
-def step_2_establish_baseline(df):
+def step_2_establish_baseline(df, min_anchor_support=1):
     """
-    Establishes the 'Start State' (MHG Pre-1200).
-    Calculates pairwise complexity (Ablaut/GW) between ALL three slots.
+    Establishes the start state from MHG observations dated 1200 or earlier.
+    Calculates pairwise complexity (Ablaut/GW) between the three study slots.
+    ``min_anchor_support`` is one in production and may be raised only for the
+    documented weak-anchor sensitivity analysis.
     """
-    print("\n--- Step 2: Establishing Diachronic Baseline (Pre-1200) ---")
+    print("\n--- Step 2: Establishing Diachronic Baseline (date <= 1200) ---")
 
     # Filter for Baseline Candidates
     baseline_df = df[
-        (df["date"] <= 1200) & (df["corpus"] == "MHG") & (df["extracted_vowel"].notna())
+        (df["date"] <= BASELINE_MAX_DATE)
+        & (df["corpus"] == "MHG")
+        & (df["std_infl"].isin(BASELINE_SLOTS))
+        & (df["extracted_vowel"].notna())
     ].copy()
 
     # Group by Lemma+Variety+Infl to get the mode
+    def supported_mode(values):
+        mode = values.mode()
+        if mode.empty:
+            return pd.NA
+        winner = mode.iloc[0]
+        return winner if int((values == winner).sum()) >= min_anchor_support else pd.NA
+
     anchors = (
         baseline_df.groupby(["lemma_id", "variety", "std_infl"])[
             ["extracted_vowel", "extracted_coda"]
         ]
-        .agg(lambda x: pd.Series.mode(x)[0] if not x.mode().empty else pd.NA)
+        .agg(supported_mode)
         .reset_index()
     )
 
@@ -1233,72 +1328,19 @@ def step_4_coding_outcome(df, baseline_df, target_df, sc_file="data/vowel_change
     def code_row(row):
         variety = row["variety"]
         infl = row["std_infl"]  # Current observation slot (PastSg or PastPl)
-
-        # Anchors
-        anchor_pres_v = row.get("anchor_vowel_pres")
-        anchor_pres_c = row.get("anchor_coda_pres")
-
-        if infl == "PastSg":
-            anchor_self_v = row.get("anchor_vowel_pastsg")
-            anchor_self_c = row.get("anchor_coda_pastsg")
-            anchor_other_v = row.get("anchor_vowel_pastpl")
-            anchor_other_c = row.get("anchor_coda_pastpl")
-
-            # --- FLAGGING FLAGS (For PastSg) ---
-            # Did I differ from Present?
-            hist_diff_v_pres = row.get("diff_vowel_pres_pastsg")
-            hist_diff_c_pres = row.get("diff_cons_pres_pastsg")
-            # Did I differ from PastPl?
-            hist_diff_v_other = row.get("diff_vowel_pastsg_pastpl")
-            hist_diff_c_other = row.get("diff_cons_pastsg_pastpl")
-
-        else:  # PastPl
-            anchor_self_v = row.get("anchor_vowel_pastpl")
-            anchor_self_c = row.get("anchor_coda_pastpl")
-            anchor_other_v = row.get("anchor_vowel_pastsg")
-            anchor_other_c = row.get("anchor_coda_pastsg")
-
-            # --- FLAGGING FLAGS (For PastPl) ---
-            # Did I differ from Present?
-            hist_diff_v_pres = row.get("diff_vowel_pres_pastpl")
-            hist_diff_c_pres = row.get("diff_cons_pres_pastpl")
-            # Did I differ from PastSg?
-            hist_diff_v_other = row.get("diff_vowel_pastsg_pastpl")
-            hist_diff_c_other = row.get("diff_cons_pastsg_pastpl")
-
-        # Contrasts the pre-1200 baseline established for this paradigm. Each
-        # one is protected from the sound-change filter, in both directions.
-        def build_protected(pairs):
-            out = set()
-            for first, second, differs in pairs:
-                if differs is not True:
-                    continue
-                if pd.isna(first) or pd.isna(second):
-                    continue
-                first, second = str(first), str(second)
-                if first != second:
-                    out.add(frozenset((first, second)))
-            return out
-
-        protected_v = build_protected(
-            [
-                (anchor_pres_v, anchor_self_v, hist_diff_v_pres),
-                (anchor_self_v, anchor_other_v, hist_diff_v_other),
-            ]
-        )
-        # Codas are compared on their last character, so protect that form too.
-        def last_char(value):
-            if pd.isna(value):
-                return value
-            text = str(value).lower()
-            return text[-1] if len(text) > 1 else text
-
-        protected_c = build_protected(
-            [
-                (last_char(anchor_pres_c), last_char(anchor_self_c), hist_diff_c_pres),
-                (last_char(anchor_self_c), last_char(anchor_other_c), hist_diff_c_other),
-            ]
-        )
+        context = baseline_contrast_context(row, infl)
+        anchor_pres_v = context["anchor_pres_v"]
+        anchor_pres_c = context["anchor_pres_c"]
+        anchor_self_v = context["anchor_self_v"]
+        anchor_self_c = context["anchor_self_c"]
+        anchor_other_v = context["anchor_other_v"]
+        anchor_other_c = context["anchor_other_c"]
+        hist_diff_v_pres = context["hist_diff_v_pres"]
+        hist_diff_c_pres = context["hist_diff_c_pres"]
+        hist_diff_v_other = context["hist_diff_v_other"]
+        hist_diff_c_other = context["hist_diff_c_other"]
+        protected_v = context["protected_v"]
+        protected_c = context["protected_c"]
 
         obs_v = row["extracted_vowel"]
         obs_c = row["extracted_coda"]

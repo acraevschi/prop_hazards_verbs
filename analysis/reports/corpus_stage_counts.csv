@@ -1,0 +1,15 @@
+stage,corpus,observations,source_tokens,observation_unit,documents,surface_lemmas,lemma_families
+extracted,ENHG,166800,166800,token row,190,1754,0
+extracted,MHG,164187,164187,token row,405,2945,0
+combined,ENHG,166800,166800,token row,190,1754,227
+combined,MHG,164187,164187,token row,405,2945,367
+mapped,ENHG,117281,117281,token row,189,490,227
+mapped,MHG,164177,164177,token row,405,2939,367
+normalized,ENHG,48830,48830,token row,78,420,193
+normalized,MHG,93215,93215,token row,156,2207,227
+coding_eligible,ENHG,31539,31539,token row,78,397,191
+coding_eligible,MHG,76850,76850,token row,156,1956,216
+coded,ENHG,11457,11457,token row,75,262,126
+coded,MHG,35791,35791,token row,151,1337,197
+vowel_model,ENHG,1526,8737,document-lemma-slot-outcome presence,75,79,79
+vowel_model,MHG,5984,29554,document-lemma-slot-outcome presence,151,124,124

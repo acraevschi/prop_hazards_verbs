@@ -1,0 +1,10 @@
+stage,denominator,observations,source_tokens,observation_unit,surface_lemmas,lemma_families,documents,note
+MHG extraction,164187,164187,164187,token row,2945,0,405,all extracted MHG strong-verb tokens
+ENHG extraction,166800,166800,166800,token row,1754,0,190,all extracted ENHG strong-verb tokens
+Combined join,330987,330987,330987,token row,4671,455,595,mapped and unmapped rows retained
+Mapped join rows,330987,281458,281458,token row,3406,455,594,non-missing corpus-aware lemma_id
+Frequency eligible,281458,280870,280870,token row,3175,291,594,family has more than 10 mapped tokens
+Normalized,280870,142045,142045,token row,2608,290,234,"date, variety, and principal part all resolved"
+Coding eligible,142045,108389,108389,token row,2335,282,234,excluded non-strong/irregular inflClass labels
+Coded past tokens,108389,47248,47248,token row,1587,233,226,PastSg and PastPl rows emitted by outcome coder
+Vowel model,47248,7510,38291,document-lemma-slot-outcome presence,124,124,226,distinct document x lemma-family x slot x outcome rows

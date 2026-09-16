@@ -1,7 +1,7 @@
-"Model","Max_Rhat","Pct_Rhat_LE_1.01","Min_Bulk_ESS","Min_Tail_ESS","Divergences","Max_Treedepth_Hits"
-"Tensor (k=10)",1.0097,"100.0%",577,1022,0,0
-"Smooth interaction (k=10)",1.0051,"100.0%",1238,1098,3,0
-"Tensor | Token Freq. (k=10)",1.0066,"100.0%",1123,1359,0,0
-"Tensor | Token Freq. (k=4)",1.0057,"100.0%",724,1374,0,0
-"Tensor (k=4)",1.0076,"100.0%",804,2231,0,0
-"Smooth interaction (k=4)",1.007,"100.0%",570,1425,0,0
+"Model","Max_Rhat","Pct_Rhat_LE_1.01","Min_Bulk_ESS","Min_Tail_ESS","Divergences","Min_EBFMI","Max_Treedepth_Setting","Max_Treedepth_Hits"
+"Tensor (k=10)",1.0028,"100.0%",1819,1732,0,0.892,10,0
+"Smooth interaction (k=10)",1.0055,"100.0%",1693,2931,1,0.844,10,0
+"Tensor | Token Freq. (k=10)",1.0028,"100.0%",1432,2296,0,0.837,10,0
+"Tensor | Token Freq. (k=4)",1.0049,"100.0%",1496,3542,0,0.775,10,0
+"Tensor (k=4)",1.0046,"100.0%",1187,2214,1,0.73,10,0
+"Smooth interaction (k=4)",1.0039,"100.0%",1446,2659,0,0.786,10,0

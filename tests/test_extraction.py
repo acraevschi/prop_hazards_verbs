@@ -17,6 +17,10 @@ from data.corpus_approach_coding import (
     standardize_infl,
     PRINCIPAL_PART_TO_INFL,
     SLOTS_WITH_ENDING,
+    BASELINE_SLOTS,
+    BASELINE_MAX_DATE,
+    baseline_contrast_context,
+    step_2_establish_baseline,
 )
 from data.lemmas.enhg_mhg_mapping import DSU
 
@@ -250,6 +254,61 @@ class TestSoundChanges(unittest.TestCase):
         self.assertTrue(are_vowels_equivalent("uo", "u", "Upper German", self.sc_dict))
         # Central German i -> ei
         self.assertTrue(are_vowels_equivalent("i", "ei", "Central German", self.sc_dict))
+
+    def test_production_context_protects_baseline_ablaut(self):
+        row = pd.Series(
+            {
+                "anchor_vowel_pres": "ei",
+                "anchor_coda_pres": "d",
+                "anchor_vowel_pastsg": "i",
+                "anchor_coda_pastsg": "t",
+                "anchor_vowel_pastpl": "i",
+                "anchor_coda_pastpl": "t",
+                "diff_vowel_pres_pastsg": True,
+                "diff_cons_pres_pastsg": True,
+                "diff_vowel_pres_pastpl": True,
+                "diff_cons_pres_pastpl": True,
+                "diff_vowel_pastsg_pastpl": False,
+                "diff_cons_pastsg_pastpl": False,
+            }
+        )
+        context = baseline_contrast_context(row, "PastSg")
+        self.assertTrue(
+            are_vowels_equivalent("i", "ei", "Central German", self.sc_dict)
+        )
+        self.assertFalse(
+            are_vowels_equivalent(
+                "i", "ei", "Central German", self.sc_dict,
+                protected=context["protected_v"],
+            )
+        )
+
+
+class TestBaselineDefinition(unittest.TestCase):
+    def test_baseline_is_inclusive_and_uses_only_three_study_slots(self):
+        self.assertEqual(BASELINE_MAX_DATE, 1200)
+        self.assertEqual(BASELINE_SLOTS, ("Pres", "PastSg", "PastPl"))
+        frame = pd.DataFrame(
+            [
+                ("Pres", "e", "d"),
+                ("PastSg", "a", "t"),
+                ("PastPl", "u", "t"),
+                ("Ppl", "o", "t"),
+            ],
+            columns=["std_infl", "extracted_vowel", "extracted_coda"],
+        )
+        frame["lemma_id"] = 1
+        frame["variety"] = "Central German"
+        frame["corpus"] = "MHG"
+        frame["date"] = 1200
+
+        baseline = step_2_establish_baseline(frame)
+
+        self.assertEqual(len(baseline), 1)
+        self.assertEqual(baseline.loc[0, "anchor_vowel_pres"], "e")
+        self.assertEqual(baseline.loc[0, "anchor_vowel_pastsg"], "a")
+        self.assertEqual(baseline.loc[0, "anchor_vowel_pastpl"], "u")
+        self.assertNotIn("anchor_vowel_ppl", baseline.columns)
 
 
 class TestInflectionStandardization(unittest.TestCase):

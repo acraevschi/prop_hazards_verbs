@@ -20,7 +20,7 @@
 #   --overwrite, -o        Refit models that already exist in fits/ [default: FALSE]
 #   --test                 Quick test run with small iterations/chains [default: FALSE]
 #   --dry-run              Validate stancode & data without MCMC sampling [default: FALSE]
-#   --prepare-only          Write token-level model data and exit before Stan [default: FALSE]
+#   --prepare-only          Write explicit deduplicated model data and exit [default: FALSE]
 #   -h, --help             Show help message and exit
 #
 # Reproducibility: the seed fixes the results only because within-chain threading
@@ -85,7 +85,7 @@ print_cli_help <- function() {
   cat("  --overwrite, -o        Refit models that already exist in fits/ [default: FALSE]\n")
   cat("  --test                 Quick test run with small iterations/chains [default: FALSE]\n")
   cat("  --dry-run              Validate formulas & Stan code without sampling [default: FALSE]\n")
-  cat("  --prepare-only          Write model data and exit before Stan [default: FALSE]\n")
+  cat("  --prepare-only          Write explicit deduplicated model data and exit [default: FALSE]\n")
   cat("  --model <str>          Which model to fit (1-6, or all) [default: all]\n")
   cat("  -h, --help             Show this help message and exit\n\n")
   cat("Booleans accept true/false, yes/no, and 1/0. You can also write\n")
@@ -367,8 +367,9 @@ base_model_data <- raw_data %>%
     log_token_freq = log(token_freq_avg + 0.0001)
   )
 
-# Construct joint marking_type predictor and filter to vowel-only modeling dataset
-model_data <- base_model_data %>%
+# Construct token-level predictors before collapsing to the independently
+# attested document x lemma-family x inflection-slot modeling unit.
+token_model_data <- base_model_data %>%
   mutate(
     log_alt_pres_freq = if_else(has_alt_pres == "yes", log(target_alt_pres_freq), 0),
     log_alt_past_freq = if_else(has_alt_past == "yes", log(target_alt_past_freq), 0),
@@ -402,13 +403,128 @@ model_data <- base_model_data %>%
     document_id, token_id, observation_id, variety, std_infl, corpus
   )
 
-if (anyDuplicated(model_data$observation_id)) {
+if (anyDuplicated(token_model_data$observation_id)) {
   stop("A source token produced multiple vowel modeling rows", call. = FALSE)
 }
-cat(sprintf("Prepared %d vowel-only modeling observations across %d unique lemmas.\n", nrow(model_data), n_distinct(model_data$lemma_std)))
+expected_doc_prefix <- paste0(as.character(token_model_data$corpus), ":")
+if (any(!startsWith(as.character(token_model_data$document_id), expected_doc_prefix))) {
+  stop("document_id is not qualified by its source corpus", call. = FALSE)
+}
+
+cell_key <- c("document_id", "lemma_std", "std_infl")
+constant_predictors <- c(
+  "lemma", "date", "log_token_freq",
+  "has_alt_pres", "log_alt_pres_freq",
+  "has_alt_past", "log_alt_past_freq",
+  "marking_type", "is_bipartite", "element_type", "variety", "corpus"
+)
+nonconstant <- token_model_data %>%
+  group_by(across(all_of(cell_key))) %>%
+  summarise(across(all_of(constant_predictors), ~ n_distinct(.x, na.rm = FALSE)),
+            .groups = "drop") %>%
+  filter(if_any(all_of(constant_predictors), ~ .x != 1))
+if (nrow(nonconstant) > 0) {
+  stop("A document-lemma-slot cell has non-constant categorical/context predictors", call. = FALSE)
+}
+
+# Surface-lemma frequency can differ inside one unified lemma family (for
+# example simplex and prefixed members in the same document). Its token-weighted
+# mean is the cell covariate; min/max and the number of values remain in the
+# exported table so this aggregation is auditable.
+cell_data <- token_model_data %>%
+  group_by(across(all_of(cell_key))) %>%
+  summarise(
+    lemma = first(lemma),
+    date = first(date),
+    log_freq = mean(log_freq),
+    log_freq_min = min(log_freq),
+    log_freq_max = max(log_freq),
+    n_log_freq_values = n_distinct(log_freq),
+    log_token_freq = first(log_token_freq),
+    has_alt_pres = first(has_alt_pres),
+    log_alt_pres_freq = first(log_alt_pres_freq),
+    has_alt_past = first(has_alt_past),
+    log_alt_past_freq = first(log_alt_past_freq),
+    marking_type = first(marking_type),
+    is_bipartite = first(is_bipartite),
+    element_type = first(element_type),
+    leveled_tokens = sum(has_levelled),
+    preserved_tokens = sum(1 - has_levelled),
+    n_tokens = n(),
+    variety = first(variety),
+    corpus = first(corpus),
+    .groups = "drop"
+  ) %>%
+  mutate(cell_id = paste(document_id, lemma_std, std_infl, sep = "|")) %>%
+  select(
+    cell_id, document_id, lemma, lemma_std, std_infl,
+    leveled_tokens, preserved_tokens, n_tokens,
+    date, log_freq, log_freq_min, log_freq_max, n_log_freq_values,
+    log_token_freq, has_alt_pres, log_alt_pres_freq,
+    has_alt_past, log_alt_past_freq,
+    marking_type, is_bipartite, element_type, variety, corpus
+  )
+
+if (anyDuplicated(cell_data$cell_id) || anyDuplicated(cell_data[cell_key])) {
+  stop("The document-lemma-slot cell key is not unique", call. = FALSE)
+}
+if (sum(cell_data$n_tokens) != nrow(token_model_data)) {
+  stop("Cell aggregation lost source-token outcomes", call. = FALSE)
+}
+if (any(cell_data$leveled_tokens + cell_data$preserved_tokens != cell_data$n_tokens)) {
+  stop("Cell outcome counts do not sum to n_tokens", call. = FALSE)
+}
+
+# The likelihood uses outcome presence, not token multiplicity. This is the
+# explicit equivalent of
+#   distinct(document_id, lemma_id, std_infl, has_levelled)
+# after cell-level predictors have been made deterministic. A mixed cell
+# contributes one row for each outcome state; counts remain audit columns only.
+model_data <- bind_rows(
+  cell_data %>% filter(preserved_tokens > 0) %>% mutate(has_levelled = 0L),
+  cell_data %>% filter(leveled_tokens > 0) %>% mutate(has_levelled = 1L)
+) %>%
+  mutate(
+    outcome_token_count = if_else(
+      has_levelled == 1L, leveled_tokens, preserved_tokens
+    ),
+    model_row_id = paste(cell_id, has_levelled, sep = "|")
+  ) %>%
+  arrange(document_id, lemma_std, std_infl, has_levelled) %>%
+  select(
+    model_row_id, cell_id, document_id, lemma, lemma_std, std_infl,
+    has_levelled, outcome_token_count,
+    leveled_tokens, preserved_tokens, n_tokens,
+    date, log_freq, log_freq_min, log_freq_max, n_log_freq_values,
+    log_token_freq, has_alt_pres, log_alt_pres_freq,
+    has_alt_past, log_alt_past_freq,
+    marking_type, is_bipartite, element_type, variety, corpus
+  )
+
+model_key <- c(cell_key, "has_levelled")
+if (anyDuplicated(model_data$model_row_id) || anyDuplicated(model_data[model_key])) {
+  stop("The document-lemma-slot-outcome modeling key is not unique", call. = FALSE)
+}
+cat(sprintf(
+  paste0("Prepared %d distinct document-lemma-slot-outcome observations from ",
+         "%d cells and %d source-token outcomes across %d unique lemmas.\n"),
+  nrow(model_data), nrow(cell_data), sum(cell_data$n_tokens),
+  n_distinct(model_data$lemma_std)
+))
+doc_support <- cell_data %>%
+  group_by(corpus) %>%
+  summarise(cells = n(), tokens = sum(n_tokens), documents = n_distinct(document_id), .groups = "drop")
+for (i in seq_len(nrow(doc_support))) {
+  model_rows <- sum(model_data$corpus == doc_support$corpus[i])
+  cat(sprintf(" - %s: %d model observations from %d cells retaining %d tokens across %d source documents\n",
+              doc_support$corpus[i], model_rows, doc_support$cells[i],
+              doc_support$tokens[i], doc_support$documents[i]))
+}
 
 # Save prepared analysis dataset
 write.csv(model_data, "analysis/data_for_analysis.csv", row.names = FALSE)
+analysis_dataset_md5 <- unname(tools::md5sum("analysis/data_for_analysis.csv"))
+cat(sprintf(" - analysis/data_for_analysis.csv MD5: %s\n", analysis_dataset_md5))
 
 if (cfg$prepare_only) {
   cat("Preparation complete; exiting before model construction or sampling.\n")
@@ -469,6 +585,7 @@ fit_and_cache_model <- function(formula, data, priors, cfg, threads, mcmc_contro
     cat(sprintf("File '%s' exists, refitting as requested (--overwrite)...\n", rds_path))
   }
 
+  sample_started <- Sys.time()
   # No `file` argument here. brms would load the cached fit instead of running
   # the sampler, which would cancel --overwrite.
   fit <- brm(
@@ -491,6 +608,41 @@ fit_and_cache_model <- function(formula, data, priors, cfg, threads, mcmc_contro
       cat(sprintf("Warning: Could not compute LOO-CV for %s: %s\n", file_base, e$message))
     })
   }
+
+  # Persist the final object after LOO and write a sidecar that binds this fit
+  # to the regenerated token table and resolved sampler configuration.
+  saveRDS(fit, rds_path)
+  sample_finished <- Sys.time()
+  provenance <- data.frame(
+    model = basename(file_base),
+    rds_path = rds_path,
+    rds_md5 = unname(tools::md5sum(rds_path)),
+    dataset_path = "analysis/data_for_analysis.csv",
+    dataset_md5 = analysis_dataset_md5,
+    dataset_rows = nrow(model_data),
+    dataset_cells = nrow(cell_data),
+    dataset_source_tokens = sum(cell_data$n_tokens),
+    dataset_lemmas = n_distinct(model_data$lemma_std),
+    dataset_documents = n_distinct(model_data$document_id),
+    sampled_fresh = TRUE,
+    sample_started = format(sample_started, "%Y-%m-%dT%H:%M:%S%z"),
+    sample_finished = format(sample_finished, "%Y-%m-%dT%H:%M:%S%z"),
+    chains = cfg$chains,
+    iter = cfg$iter,
+    warmup = cfg$warmup,
+    parallel_chains = min(cfg$chains, cfg$cores),
+    threads_per_chain = cfg$threads,
+    seed = cfg$seed,
+    adapt_delta = cfg$adapt_delta,
+    max_treedepth = cfg$max_treedepth,
+    backend = cfg$backend,
+    r_version = R.version.string,
+    brms_version = as.character(packageVersion("brms")),
+    formula_uses_document_id = grepl("document_id", paste(deparse(formula), collapse = " "), fixed = TRUE),
+    stringsAsFactors = FALSE
+  )
+  write.csv(provenance, paste0(file_base, ".provenance.csv"), row.names = FALSE)
+  cat(sprintf("Saved fresh-fit provenance to %s.provenance.csv\n", file_base))
   
   fit
 }
@@ -564,7 +716,7 @@ if (cfg$model %in% c("all", "2", "base_k10")) {
 }
 
 # ------------------------------------------------------------------------------
-# Model 3: Primary Tensor Product GAMM (k=10) [Primary Model in Paper]
+# Model 3: Tensor Product with Lemma Frequency (k=10) [Frequency Sensitivity]
 # ------------------------------------------------------------------------------
 if (cfg$model %in% c("all", "3", "tensor_k10")) {
   formula_tensor_k10 <- bf(
@@ -591,12 +743,12 @@ if (cfg$model %in% c("all", "3", "tensor_k10")) {
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/tensor_fit_marking_type_k10",
-    model_title = "[3/6] Estimating Model 3: Primary Tensor Product GAMM (k=10) [Primary Model in Paper]"
+    model_title = "[3/6] Estimating Model 3: Tensor Product with Lemma Frequency (k=10) [Frequency Sensitivity]"
   )
 }
 
 # ------------------------------------------------------------------------------
-# Model 4: Tensor Product GAMM (k=4) [Sensitivity Check on Basis Dimension]
+# Model 4: Tensor Product with Lemma Frequency (k=4) [Basis-Dimension + Frequency Sensitivity]
 # ------------------------------------------------------------------------------
 if (cfg$model %in% c("all", "4", "tensor_k4")) {
   formula_tensor_k4 <- bf(
@@ -623,12 +775,12 @@ if (cfg$model %in% c("all", "4", "tensor_k4")) {
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/tensor_fit_marking_type_k4",
-    model_title = "[4/6] Estimating Model 4: Tensor Product GAMM (k=4) [Sensitivity Check on Basis Dimension]"
+    model_title = "[4/6] Estimating Model 4: Tensor Product with Lemma Frequency (k=4) [Basis-Dimension + Frequency Sensitivity]"
   )
 }
 
 # ------------------------------------------------------------------------------
-# Model 5: Tensor Product with Token Frequency (k=10) [Sensitivity Check on Frequency]
+# Model 5: Tensor Product with Token Frequency (k=10) [Primary Model]
 # ------------------------------------------------------------------------------
 if (cfg$model %in% c("all", "5", "tensor_token", "token", "tensor_token_k10", "token_k10")) {
   formula_tensor_token_k10 <- bf(
@@ -655,12 +807,12 @@ if (cfg$model %in% c("all", "5", "tensor_token", "token", "tensor_token_k10", "t
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/tensor_fit_marking_type_k10_token",
-    model_title = "[5/6] Estimating Model 5: Tensor Product with Token Frequency (k=10) [Sensitivity Check on Frequency]"
+    model_title = "[5/6] Estimating Model 5: Tensor Product with Token Frequency (k=10) [Primary Model]"
   )
 }
 
 # ------------------------------------------------------------------------------
-# Model 6: Tensor Product with Token Frequency (k=4) [Sensitivity Check on Basis Dimension + Frequency]
+# Model 6: Tensor Product with Token Frequency (k=4) [Basis-Dimension Sensitivity]
 # ------------------------------------------------------------------------------
 if (cfg$model %in% c("all", "6", "tensor_token_k4", "token_k4", "token4")) {
   formula_tensor_token_k4 <- bf(
@@ -687,7 +839,7 @@ if (cfg$model %in% c("all", "6", "tensor_token_k4", "token_k4", "token4")) {
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/tensor_fit_marking_type_k4_token",
-    model_title = "[6/6] Estimating Model 6: Tensor Product with Token Frequency (k=4) [Sensitivity Check on Basis Dimension + Frequency]"
+    model_title = "[6/6] Estimating Model 6: Tensor Product with Token Frequency (k=4) [Basis-Dimension Sensitivity]"
   )
 }
 

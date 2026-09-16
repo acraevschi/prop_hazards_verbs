@@ -1,0 +1,4 @@
+criterion,denominator,excluded_tokens,definition
+missing date mapping,280870,127410,independent count; overlaps other missing-field counts
+missing variety mapping,280870,9937,independent count; overlaps other missing-field counts
+missing principal-part mapping,280870,8276,independent count; overlaps other missing-field counts

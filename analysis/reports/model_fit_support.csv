@@ -1,0 +1,7 @@
+"Model","model_observations","document_lemma_slot_cells","source_token_outcomes","lemmas","documents","uses_document_random_intercept"
+"Base (k=4)",7510,7422,38291,124,226,TRUE
+"Base (k=10)",7510,7422,38291,124,226,TRUE
+"Tensor (k=10)",7510,7422,38291,124,226,TRUE
+"Tensor (k=4)",7510,7422,38291,124,226,TRUE
+"Tensor (k=10) Token",7510,7422,38291,124,226,TRUE
+"Tensor (k=4) Token",7510,7422,38291,124,226,TRUE

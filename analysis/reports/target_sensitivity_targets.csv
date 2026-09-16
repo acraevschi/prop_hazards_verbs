@@ -1,0 +1,9 @@
+comparison,target_component,all_lemma_variety_groups,production_resolved,alternative_resolved,resolved_in_both,production_only,alternative_only,neither_resolved,identical_targets,different_targets,direct_target_agreement_pct_among_both
+strict corpus date >= 1500,target_vowel_pres,531,406,406,406,0,0,125,406,0,100.0
+strict corpus date >= 1500,target_coda_pres,531,406,406,406,0,0,125,406,0,100.0
+strict corpus date >= 1500,target_vowel_past,531,400,398,398,2,0,131,398,0,100.0
+strict corpus date >= 1500,target_coda_past,531,400,398,398,2,0,131,398,0,100.0
+late corpus with per-tense fallback,target_vowel_pres,531,406,406,406,0,0,125,406,0,100.0
+late corpus with per-tense fallback,target_coda_pres,531,406,406,406,0,0,125,406,0,100.0
+late corpus with per-tense fallback,target_vowel_past,531,400,400,400,0,0,131,400,0,100.0
+late corpus with per-tense fallback,target_coda_past,531,400,400,400,0,0,131,400,0,100.0

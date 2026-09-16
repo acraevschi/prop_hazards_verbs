@@ -9,7 +9,7 @@ This directory contains the statistical modeling, MCMC convergence diagnostics, 
 ```
 analysis/
 ├── README.md                                <- This documentation file
-├── data_for_analysis.csv                    <- Prepared vowel-only modeling dataset (38,291 token rows, 124 unique lemmas)
+├── data_for_analysis.csv                    <- Explicit document-lemma-slot-outcome observations
 │
 ├── 🧠 Core Bayesian Modeling Pipeline
 │   ├── run_brms.R                           <- Fits 6 Bayesian GAMM models via brms / Stan (Option A: Vowel-Only)
@@ -29,13 +29,23 @@ analysis/
 │   └── target_sensitivity.py                <- Double robustness check for late ENHG target definitions
 │
 └── 📊 reports/                              <- Audit summaries & diagnostic reports (.md, .csv)
+    ├── regeneration_report.md               <- Task 2 provenance, old/new comparison, and source map
     ├── consonant_analysis_report.md         <- Comprehensive report on consonant channel leveling
     ├── consonant_summary.csv                <- Mechanism summary (Morphological GW vs Orthographic)
     ├── consonant_lemma_breakdown.csv        <- Per-lemma consonant leveling counts and rates
     ├── attrition_report.md                  <- Full funnel report on lemma/token attrition
     ├── attrition_summary.csv                <- Key attrition metrics table
     ├── target_sensitivity_report.md         <- Report on target state stability & label concordance
-    ├── target_sensitivity_summary.csv       <- Quantitative concordance table (100% agreement)
+    ├── target_sensitivity_summary.csv       <- Outcome codability and concordance denominators
+    ├── target_sensitivity_targets.csv       <- Direct target identity with missing groups retained
+    ├── marking_type_report.md               <- Marking, concentration, lîhen, and variant audit
+    ├── stage_counts.csv                     <- Stage-by-stage token, lemma, and document counts
+    ├── baseline_anchor_support.csv          <- Support for every production anchor cell
+    ├── model_predictor_distribution.csv     <- Model sample and predictor support
+    ├── model_comparison.csv                 <- PSIS-LOO ordering from the rendered analysis
+    ├── psis_loo_diagnostics.csv             <- Pareto-k bins for every fit
+    ├── posterior_fixed_effects.csv          <- Fixed-effect posterior summaries
+    ├── evidence_ratios.csv                  <- Directional hypothesis evidence ratio
     ├── mcmc_convergence_table.md           <- Sampler convergence markdown summary table
     └── mcmc_convergence.csv                <- Machine-readable MCMC sampler diagnostics
 ```
@@ -58,9 +68,30 @@ analysis/
     4. `tensor_fit_marking_type_k4` (Tensor Product GAMM with lemma frequency, $k=4$, sensitivity check on basis dimension)
     5. `base_fit_marking_type_k10` (Smooth Interaction GAMM with lemma frequency, $k=10$)
     6. `base_fit_marking_type` (Smooth Interaction GAMM with lemma frequency, $k=4$, appendix baseline)
-  - **Observation identity**: each row is one collision-free `observation_id`; `document_id` supplies the document random effect and does not collapse repeated attestations of a lemma and slot.
+  - **Observation unit**: repeated identical outcomes are removed explicitly by `document_id × lemma_id × std_infl × has_levelled`. A mixed cell contributes one Bernoulli row for each outcome state, independent of how often either state occurs. `leveled_tokens` and `preserved_tokens` are audit columns only; `document_id` supplies the document random effect. The separate consonant analysis remains paired by token-level `observation_id`.
   - **CLI Flags**: Supports `--prepare-only` (rebuilds and validates model data without Stan), `--test` (fast test fit), and `--dry-run` (validates formulas and Stan code without sampling) alongside `--chains`, `--iter`, `--cores`, `--threads`, `--backend`, and `--overwrite`.
-  - **Outputs**: Serialized `.rds` model objects in `fits/` and prepared modeling data in `analysis/data_for_analysis.csv`.
+  - **Outputs**: Serialized `.rds` model objects in `fits/`, a provenance sidecar for each fresh fit, and prepared modeling data in `analysis/data_for_analysis.csv`.
+
+#### Reporting the within-document collapse
+
+The response is not a token-level proportion and is not a binomial count. Source
+tokens are first assigned to a corpus-qualified document, unified lemma family,
+and inflectional slot. Repeated tokens with the same outcome are then collapsed
+by taking
+`distinct(document_id, lemma_id, std_infl, has_levelled)`. Consequently, a
+document–lemma–slot cell containing only preserved tokens contributes one `0`, a
+cell containing only levelled tokens contributes one `1`, and a genuinely mixed
+cell contributes one `0` and one `1`. Ten repetitions of the same state therefore
+have exactly the same likelihood contribution as one attestation of that state.
+The original `leveled_tokens`, `preserved_tokens`, and `n_tokens` values are kept
+in the exported table to audit the collapse, but are not supplied as trials,
+weights, or responses to the models.
+
+A concise methods description is: “We removed repeated identical outcomes within
+each document–lemma–inflection cell. Cells containing only one outcome state
+contributed one Bernoulli observation, whereas cells containing both preserved
+and levelled forms contributed one observation of each; within-state token
+multiplicity did not weight the likelihood.”
 
 * **`analyze_models.Rmd`**:
   - **Purpose**: Comprehensive post-processing, Leave-One-Out Cross-Validation (PSIS-LOO), MCMC convergence tables, hypothesis testing (`marking_typevowel_bipartite < 0`), and publication figure generation.
@@ -84,7 +115,7 @@ analysis/
 
 * **`mcmc_convergence.R`**:
   - **Purpose**: Audits Stan MCMC health across every fitted model found in `fits/` to guarantee reliable posterior exploration.
-  - **Metrics**: Max $\hat{R}$, percentage of parameters with $\hat{R} \le 1.01$, minimum Bulk-ESS, minimum Tail-ESS, divergent transitions, and maximum treedepth hits.
+  - **Metrics**: Max $\hat{R}$, percentage of parameters with $\hat{R} \le 1.01$, minimum Bulk-ESS, minimum Tail-ESS, divergent transitions, E-BFMI, and hits at the configured maximum treedepth.
   - **Outputs**: `reports/mcmc_convergence_table.md` and `reports/mcmc_convergence.csv`.
 
 ---
@@ -92,12 +123,12 @@ analysis/
 ### 4. Pre-Modeling Data & Target State Audits (Double Robustness)
 
 * **`attrition_diagnostics.py`**:
-  - **Purpose**: Audits the longitudinal data pipeline from raw corpus texts (~1050–1650 CE) to the final GAMM dataset.
-  - **Outputs**: `reports/attrition_report.md` and `reports/attrition_summary.csv`.
+  - **Purpose**: Audits the longitudinal data pipeline with explicit mapping, frequency, missing-metadata, anchor-support, target-source, corpus/document, channel-outcome, and predictor denominators. Sound-change exclusions reuse production's protected contrasts.
+  - **Outputs**: `reports/attrition_report.md`, `reports/attrition_summary.csv`, and the supporting audit CSVs listed above.
 
 * **`target_sensitivity.py`**:
-  - **Purpose**: Double robustness check verifying that defining each verb's teleological target state via `max(date)` per lemma is not biased by varying document survival dates.
-  - **Outputs**: `reports/target_sensitivity_report.md` and `reports/target_sensitivity_summary.csv`.
+  - **Purpose**: Compares the production modern-first target against strict late-corpus and per-tense fallback definitions. Direct target identity, missing target groups, codability, and outcome agreement among shared codable observations remain distinct.
+  - **Outputs**: `reports/target_sensitivity_report.md`, `reports/target_sensitivity_summary.csv`, and `reports/target_sensitivity_targets.csv`.
 
 ---
 
@@ -114,7 +145,7 @@ python analysis/attrition_diagnostics.py
 python analysis/target_sensitivity.py
 
 # 3. Fit Bayesian GAMM Models (Option A: Vowel-Only)
-# Prepare the token-level model table without Stan:
+# Prepare the explicitly deduplicated model table without Stan:
 Rscript analysis/run_brms.R --prepare-only
 
 # Dry-run validation:
@@ -123,9 +154,9 @@ Rscript analysis/run_brms.R --dry-run
 # Fast test run:
 Rscript analysis/run_brms.R --test
 
-# Full MCMC production run - this is the exact command the committed fits were made with.
-# Note that --max_treedepth defaults to 10 in the script; the fits in fits/ used 12.
-Rscript analysis/run_brms.R --chains 4 --iter 4000 --cores 4 --threads 4 --seed 97 --adapt_delta 0.99 --max_treedepth 12
+# Full MCMC production run. This resolves to 4 chains, 4,000 iterations,
+# 2,000 warmup, seed 97, adapt_delta 0.99, and treedepth 10.
+Rscript analysis/run_brms.R --chains 4 --cores 4 --threads 4
 
 # 4. Generate MCMC Convergence Summary Table
 Rscript analysis/mcmc_convergence.R
