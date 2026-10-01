@@ -12,7 +12,7 @@ analysis/
 ├── data_for_analysis.csv                    <- Explicit document-lemma-slot-outcome observations
 │
 ├── 🧠 Core Bayesian Modeling Pipeline
-│   ├── run_brms.R                           <- Fits 6 Bayesian GAMM models via brms / Stan (Option A: Vowel-Only)
+│   ├── run_brms.R                           <- Fits 8 Bayesian GAMM models via brms / Stan (Option A: Vowel-Only)
 │   ├── analyze_models.Rmd                   <- LOO-CV model comparison, hypothesis testing, figure exports
 │   └── analyze_models.html                  <- Rendered R Markdown analysis report
 │
@@ -57,7 +57,7 @@ analysis/
 ### 1. Core Bayesian Modeling (Option A: Vowel-Only Model)
 
 * **`run_brms.R`**:
-  - **Purpose**: Prepares model variables and fits 6 Bayesian Generalized Additive Mixed Models (GAMMs) using `brms` and Stan on the **vowel-only** dataset.
+  - **Purpose**: Prepares model variables and fits 8 Bayesian Generalized Additive Mixed Models (GAMMs) using `brms` and Stan on the **vowel-only** dataset.
   - **Factor Specification**:
     - Consonant observations are filtered out to eliminate confounding from orthographic coda devoicing (*Auslautverhärtung*).
     - `marking_type` is parameterized with `vowel_unipartite` explicitly as the reference factor level (baseline $\beta_0$), so the `vowel_bipartite` parameter measures the treatment contrast directly.
@@ -68,6 +68,8 @@ analysis/
     4. `tensor_fit_marking_type_k4` (Tensor Product GAMM with lemma frequency, $k=4$, sensitivity check on basis dimension)
     5. `base_fit_marking_type_k10` (Smooth Interaction GAMM with lemma frequency, $k=10$)
     6. `base_fit_marking_type` (Smooth Interaction GAMM with lemma frequency, $k=4$, appendix baseline)
+    7. `base_fit_marking_type_k10_token` (Smooth Interaction GAMM with token frequency, $k=10$)
+    8. `base_fit_marking_type_k4_token` (Smooth Interaction GAMM with token frequency, $k=4$)
   - **Observation unit**: repeated identical outcomes are removed explicitly by `document_id × lemma_id × std_infl × has_levelled`. A mixed cell contributes one Bernoulli row for each outcome state, independent of how often either state occurs. `leveled_tokens` and `preserved_tokens` are audit columns only; `document_id` supplies the document random effect. The separate consonant analysis remains paired by token-level `observation_id`.
   - **CLI Flags**: Supports `--prepare-only` (rebuilds and validates model data without Stan), `--test` (fast test fit), and `--dry-run` (validates formulas and Stan code without sampling) alongside `--chains`, `--iter`, `--cores`, `--threads`, `--backend`, and `--overwrite`.
   - **Outputs**: Serialized `.rds` model objects in `fits/`, a provenance sidecar for each fresh fit, and prepared modeling data in `analysis/data_for_analysis.csv`.

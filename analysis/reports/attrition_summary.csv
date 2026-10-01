@@ -4,16 +4,16 @@ join,mapped rows,281458
 join,unmapped rows,49529
 normalization,mapped tokens in families with <=10 tokens,588
 normalization,tokens after frequency threshold,280870
-normalization,normalized tokens,142045
-baseline,anchor cells in Pres PastSg PastPl,954
-baseline,one-token anchor cells,160
-baseline,anchored lemma-variety paradigms,381
-coding,coded past tokens,47248
-model,document-lemma-slot-outcome observations,7510
-model,document-lemma-slot cells,7422
-model,vowel token outcomes represented,38291
-model,vowel modeling lemmas,124
-model,vowel modeling documents,226
-sound change,protected past target-anchor exclusions,528
-sound change,protected present target-anchor exclusions,15
-sound change,unprotected counterfactual exclusions,2508
+normalization,normalized tokens,211915
+baseline,anchor cells in Pres PastSg PastPl,960
+baseline,one-token anchor cells,162
+baseline,anchored lemma-variety paradigms,382
+coding,coded past tokens,56498
+model,document-lemma-slot-outcome observations,9290
+model,document-lemma-slot cells,9174
+model,vowel token outcomes represented,45390
+model,vowel modeling lemmas,126
+model,vowel modeling documents,335
+sound change,protected past target-anchor exclusions,603
+sound change,protected present target-anchor exclusions,19
+sound change,unprotected counterfactual exclusions,2753

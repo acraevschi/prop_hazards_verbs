@@ -1,7 +1,9 @@
 "Model","Max_Rhat","Pct_Rhat_LE_1.01","Min_Bulk_ESS","Min_Tail_ESS","Divergences","Min_EBFMI","Max_Treedepth_Setting","Max_Treedepth_Hits"
-"Tensor (k=10)",1.0028,"100.0%",1819,1732,0,0.892,10,0
-"Smooth interaction (k=10)",1.0055,"100.0%",1693,2931,1,0.844,10,0
-"Tensor | Token Freq. (k=10)",1.0028,"100.0%",1432,2296,0,0.837,10,0
-"Tensor | Token Freq. (k=4)",1.0049,"100.0%",1496,3542,0,0.775,10,0
-"Tensor (k=4)",1.0046,"100.0%",1187,2214,1,0.73,10,0
-"Smooth interaction (k=4)",1.0039,"100.0%",1446,2659,0,0.786,10,0
+"Tensor (k=10)",1.0038,"100.0%",1479,1531,0,0.801,10,0
+"Smooth interaction (k=10)",1.0059,"100.0%",1117,2004,0,0.791,10,0
+"Tensor | Token Freq. (k=10)",1.0054,"100.0%",1253,1695,1,0.799,10,0
+"Tensor | Token Freq. (k=4)",1.0049,"100.0%",1319,1286,1,0.718,10,0
+"Tensor (k=4)",1.0047,"100.0%",1117,1030,0,0.72,10,0
+"Smooth interaction (k=4)",1.0107,"99.8%",1284,1350,2,0.743,10,0
+"Smooth interaction | Token Freq. (k=10)",1.0027,"100.0%",1015,1233,0,0.751,10,0
+"Smooth interaction | Token Freq. (k=4)",1.0035,"100.0%",1212,1276,0,0.734,10,0

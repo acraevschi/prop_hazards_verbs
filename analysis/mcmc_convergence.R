@@ -24,7 +24,9 @@ models_info <- list(
   list(name = "Tensor | Token Freq. (k=10)", file = "fits/tensor_fit_marking_type_k10_token.rds"),
   list(name = "Tensor | Token Freq. (k=4)", file = "fits/tensor_fit_marking_type_k4_token.rds"),
   list(name = "Tensor (k=4)", file = "fits/tensor_fit_marking_type_k4.rds"),
-  list(name = "Smooth interaction (k=4)", file = "fits/base_fit_marking_type.rds")
+  list(name = "Smooth interaction (k=4)", file = "fits/base_fit_marking_type.rds"),
+  list(name = "Smooth interaction | Token Freq. (k=10)", file = "fits/base_fit_marking_type_k10_token.rds"),
+  list(name = "Smooth interaction | Token Freq. (k=4)", file = "fits/base_fit_marking_type_k4_token.rds")
 )
 
 results <- list()

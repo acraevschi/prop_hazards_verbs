@@ -1,6 +1,7 @@
 import pandas as pd
 import json
 import argparse
+import re
 
 
 def parse_category(s):
@@ -79,6 +80,15 @@ def map_category(s):
     return None
 
 
+def normalize_date(value, date_mapping):
+    """Keep precise four-digit years; map other corpus dating statements."""
+    if pd.isna(value):
+        return None
+    if re.fullmatch(r"[0-9]{4}", str(value).strip()):
+        return int(str(value).strip())
+    return date_mapping.get(value)
+
+
 def main(args):
     data = pd.read_csv(args.input, encoding="utf-8", low_memory=False)
 
@@ -98,7 +108,7 @@ def main(args):
     data["variety"] = data["language-region"].map(dialect_dict)
 
     date_dict = {item["original"]: item["normalized"] for item in date_mapping}
-    data["date"] = data["date"].map(date_dict)
+    data["date"] = data["date"].apply(lambda value: normalize_date(value, date_dict))
 
     data["principal_part"] = data["infl"].apply(map_category)
 

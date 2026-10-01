@@ -57,6 +57,8 @@ fit_tensor <- if (file.exists("../fits/tensor_fit_marking_type_k10.rds")) readRD
 fit_tensor_k4 <- if (file.exists("../fits/tensor_fit_marking_type_k4.rds")) readRDS("../fits/tensor_fit_marking_type_k4.rds") else NULL
 fit_tensor_k10_token <- if (file.exists("../fits/tensor_fit_marking_type_k10_token.rds")) readRDS("../fits/tensor_fit_marking_type_k10_token.rds") else NULL
 fit_tensor_k4_token <- if (file.exists("../fits/tensor_fit_marking_type_k4_token.rds")) readRDS("../fits/tensor_fit_marking_type_k4_token.rds") else NULL
+fit_base_k10_token <- if (file.exists("../fits/base_fit_marking_type_k10_token.rds")) readRDS("../fits/base_fit_marking_type_k10_token.rds") else NULL
+fit_base_k4_token <- if (file.exists("../fits/base_fit_marking_type_k4_token.rds")) readRDS("../fits/base_fit_marking_type_k4_token.rds") else NULL
 
 # Put them in a named list for easier iteration
 models <- purrr::compact(list(
@@ -65,7 +67,9 @@ models <- purrr::compact(list(
   "Tensor (k=10)" = fit_tensor,
   "Tensor (k=4)" = fit_tensor_k4,
   "Tensor (k=10) Token" = fit_tensor_k10_token,
-  "Tensor (k=4) Token" = fit_tensor_k4_token
+  "Tensor (k=4) Token" = fit_tensor_k4_token,
+  "Base (k=10) Token" = fit_base_k10_token,
+  "Base (k=4) Token" = fit_base_k4_token
 ))
 
 # Identify best-performing primary model (Model 5: Tensor Token k=10)
@@ -361,6 +365,12 @@ conditional_effects(fit_tensor, effects = "date", conditions = alt_conditions)
 if (!is.null(fit_tensor_k10_token)) {
   conditional_effects(fit_tensor_k10_token, effects = "date", conditions = alt_conditions)
 }
+if (!is.null(fit_base_k10_token)) {
+  conditional_effects(fit_base_k10_token, effects = "date", conditions = alt_conditions)
+}
+if (!is.null(fit_base_k4_token)) {
+  conditional_effects(fit_base_k4_token, effects = "date", conditions = alt_conditions)
+}
 ```
 
 ```{r}
@@ -396,6 +406,12 @@ conditional_effects(fit_k10, effects = "date:marking_type", conditions = alt_con
 conditional_effects(fit_tensor, effects = "date:marking_type", conditions = alt_conditions)
 if (!is.null(fit_tensor_k10_token)) {
   conditional_effects(fit_tensor_k10_token, effects = "date:marking_type")
+}
+if (!is.null(fit_base_k10_token)) {
+  conditional_effects(fit_base_k10_token, effects = "date:marking_type", conditions = alt_conditions)
+}
+if (!is.null(fit_base_k4_token)) {
+  conditional_effects(fit_base_k4_token, effects = "date:marking_type", conditions = alt_conditions)
 }
 ```
 

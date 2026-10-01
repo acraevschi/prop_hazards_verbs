@@ -1,5 +1,5 @@
 comparison,element,all_coded_rows,production_codable,alternative_codable,codable_in_both,production_only,alternative_only,neither_codable,concordant_labels,discordant_labels,flips_0_to_1,flips_1_to_0,outcome_agreement_pct_among_both
-strict corpus date >= 1500,Vowels,47248,38291,38291,38291,0,0,8957,38291,0,0,0,100.0
-strict corpus date >= 1500,Consonants,47248,1502,1502,1502,0,0,45746,1502,0,0,0,100.0
-late corpus with per-tense fallback,Vowels,47248,38291,38291,38291,0,0,8957,38291,0,0,0,100.0
-late corpus with per-tense fallback,Consonants,47248,1502,1502,1502,0,0,45746,1502,0,0,0,100.0
+strict corpus date >= 1500,Vowels,56498,45390,45390,45390,0,0,11108,45390,0,0,0,100.0
+strict corpus date >= 1500,Consonants,56498,1778,1778,1778,0,0,54720,1778,0,0,0,100.0
+late corpus with per-tense fallback,Vowels,56498,45390,45390,45390,0,0,11108,45390,0,0,0,100.0
+late corpus with per-tense fallback,Consonants,56498,1778,1778,1778,0,0,54720,1778,0,0,0,100.0

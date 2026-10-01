@@ -109,6 +109,9 @@ Cross-corpus lemma linking resolves Middle High German (MHG) and Early New High 
 python data/normalize_data.py
 ```
 
+Plain four-digit years are retained directly. Other dating statements use
+`date_mapping.json`; unresolved statements remain excluded.
+
 ### Stage 3b: Modern German Target Forms
 
 The endpoint of leveling is the root the verb reached in modern German. The
@@ -188,27 +191,27 @@ Three decisions in this stage are worth knowing before reading any number that c
 Once the data is verified and coded:
 
 1. **Fit Bayesian GAMM Models** (`analysis/run_brms.R`):
-   - Fits 6 Bayesian Generalized Additive Mixed Models using `brms` and Stan on the **vowel-only** dataset with `vowel_unipartite` as the reference baseline ($\beta_0$). Repeated identical outcomes are removed explicitly by `document_id × lemma_id × std_infl × has_levelled`. A mixed cell contributes one preserved and one leveled Bernoulli row; underlying token counts are retained for audit but do not weight the likelihood.
+   - Fits 8 Bayesian Generalized Additive Mixed Models using `brms` and Stan on the **vowel-only** dataset with `vowel_unipartite` as the reference baseline ($\beta_0$). Repeated identical outcomes are removed explicitly by `document_id × lemma_id × std_infl × has_levelled`. A mixed cell contributes one preserved and one leveled Bernoulli row; underlying token counts are retained for audit but do not weight the likelihood.
    - Serializes and saves the fitted model objects (`.rds`) directly into the `fits/` folder, with LOO-CV attached.
    - **CLI Options**:
-     ```bash
-    # Dry-run validation (checks stancode & data without sampling):
-    Rscript analysis/run_brms.R --dry-run
+      ```bash
+      # Dry-run validation (checks stancode & data without sampling):
+      Rscript analysis/run_brms.R --dry-run
 
-    # Rebuild and validate the document-lemma-slot analysis table without Stan:
-    Rscript analysis/run_brms.R --prepare-only
+      # Rebuild and validate the document-lemma-slot analysis table without Stan:
+      Rscript analysis/run_brms.R --prepare-only
 
-     # Fast test run (2 chains, small iterations):
-     Rscript analysis/run_brms.R --test
+      # Fast test run (2 chains, small iterations):
+      Rscript analysis/run_brms.R --test
 
-     # Full production run (4 chains x 4 within-chain threads = 16 CPU threads).
-     # Iterations, warmup, seed, adapt_delta, and treedepth use printed defaults.
-     # Empty fits/ first, or pass --overwrite, so an earlier fit cannot load.
-     Rscript analysis/run_brms.R --chains 4 --cores 4 --threads 4
-     ```
+      # Full production run (4 chains x 4 within-chain threads = 16 CPU threads).
+      # Iterations, warmup, seed, adapt_delta, and treedepth use printed defaults.
+      # Empty fits/ first, or pass --overwrite, so an earlier fit cannot load.
+      Rscript analysis/run_brms.R --chains 4 --cores 4 --threads 4
+      ```
 
 2. **MCMC Convergence Diagnostics** (`analysis/mcmc_convergence.R`):
-   - Audits Stan sampler health across all 6 fitted models in `fits/` to verify reliable posterior exploration.
+   - Audits Stan sampler health across all 8 fitted models in `fits/` to verify reliable posterior exploration.
    - Evaluates: $\max(\hat{R})$, percentage of parameters with $\hat{R} \le 1.01$, minimum Bulk-ESS, minimum Tail-ESS, divergent transitions, E-BFMI, and hits at each fit's recorded treedepth.
    - **Command**:
      ```bash

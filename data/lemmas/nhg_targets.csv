@@ -2,6 +2,7 @@ lemma_id,lemma,in_model,nhg_infinitive,nhg_preterite,nhg_preterite_variants,vari
 52,bersten,yes,bersten,,,,,dwds,,no UniMorph entry for the resolved infinitive 'bersten'
 123,zëmen,yes,ziemen,,,,,dwds,,no UniMorph entry for the resolved infinitive 'ziemen'
 51,bergen,yes,bergen,barg,barg,single,high,dwds,unimorph-deu-d226d21,
+278,biègen,yes,biegen,bog,bog,single,high,unimorph,unimorph-deu-d226d21,
 70,blasen,yes,blasen,blies,blies,single,high,dwds,unimorph-deu-d226d21,
 72,braten,yes,braten,briet,briet,single,high,dwds,unimorph-deu-d226d21,
 30,brechen,yes,brechen,brach,brach,single,high,dwds,unimorph-deu-d226d21,
@@ -83,6 +84,7 @@ lemma_id,lemma,in_model,nhg_infinitive,nhg_preterite,nhg_preterite_variants,vari
 8,snîden,yes,schneiden,schnitt,schnitt,single,high,dwds,unimorph-deu-d226d21,
 358,spalten,yes,spalten,spaltete,spaltete,single,high,unimorph,unimorph-deu-d226d21,
 260,spannen,yes,spannen,spannte,spannte,single,high,unimorph,unimorph-deu-d226d21,
+197,spinnen,yes,spinnen,spann,spann,single,high,dwds,unimorph-deu-d226d21,
 27,sprechen,yes,sprechen,sprach,sprach,single,high,dwds,unimorph-deu-d226d21,
 89,springen,yes,springen,sprang,sprang,single,high,dwds,unimorph-deu-d226d21,
 33,stechen,yes,stechen,stach,stach,single,high,dwds,unimorph-deu-d226d21,
@@ -207,7 +209,6 @@ lemma_id,lemma,in_model,nhg_infinitive,nhg_preterite,nhg_preterite_variants,vari
 56,beschweren,no,beschweren,beschwerte,beschwerte,single,high,dwds,unimorph-deu-d226d21,
 68,binden,no,binden,band,band,single,high,dwds,unimorph-deu-d226d21,
 69,bitte,no,bitten,bat,bat,single,high,dwds,unimorph-deu-d226d21,
-278,biègen,no,biegen,bog,bog,single,high,unimorph,unimorph-deu-d226d21,
 71,bleiben,no,bleiben,blieb,blieb,single,high,dwds,unimorph-deu-d226d21,
 73,brauchen,no,brauchen,brauchte,brauchte,single,high,dwds,unimorph-deu-d226d21,
 75,bringen,no,bringen,brachte,brachte,single,high,dwds,unimorph-deu-d226d21,
@@ -258,11 +259,11 @@ lemma_id,lemma,in_model,nhg_infinitive,nhg_preterite,nhg_preterite_variants,vari
 171,schaben,no,schaben,schabte,schabte,single,high,dwds,unimorph-deu-d226d21,
 6,schaffen,no,schaffen,schuf,schuf|schaffte,policy,policy,dwds,unimorph-deu-d226d21,"schaffte belongs to the weak homograph schaffen 'manage, work'; MHG schaffen 'create' continues as schuf"
 174,schicken,no,schicken,schickte,schickte,single,high,dwds,unimorph-deu-d226d21,
+178,schmieren,no,schmieren,schmierte,schmierte,single,high,dwds,unimorph-deu-d226d21,
 54,schîden,no,bescheiden,beschied,beschied,single,high,dwds,unimorph-deu-d226d21,
 189,senden,no,senden,sandte,sendete|sandte,policy,policy,dwds,unimorph-deu-d226d21,Rückumlauf form is the commoner standard variant
 191,setzen,no,setzen,setzte,setzte,single,high,dwds,unimorph-deu-d226d21,
 195,sollen,no,sollen,sollte,sollte,single,high,dwds,unimorph-deu-d226d21,
-197,spinnen,no,spinnen,spann,spann,single,high,dwds,unimorph-deu-d226d21,
 60,stellen,no,stellen,stellte,stellte,single,high,dwds,unimorph-deu-d226d21,
 202,strafen,no,strafen,strafte,strafte,single,high,dwds,unimorph-deu-d226d21,
 205,studieren,no,studieren,studierte,studierte,single,high,dwds,unimorph-deu-d226d21,

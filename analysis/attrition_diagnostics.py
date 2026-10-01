@@ -21,7 +21,7 @@ from data.corpus_approach_coding import (
     step_2_establish_baseline,
     step_3_establish_targets,
 )
-from data.normalize_data import map_category
+from data.normalize_data import map_category, normalize_date
 
 
 REPORT_DIR = "analysis/reports"
@@ -83,7 +83,7 @@ def _normalization_audit(combined, dialect_file, date_file):
     work.loc[work["mapped"], "family_size"] = family_size
     work["passes_frequency"] = work["mapped"] & work["family_size"].gt(10)
     eligible = work.loc[work["passes_frequency"]].copy()
-    eligible["mapped_date"] = eligible["date"].map(dates)
+    eligible["mapped_date"] = eligible["date"].apply(lambda value: normalize_date(value, dates))
     eligible["mapped_variety"] = eligible["language-region"].map(dialect)
     eligible["mapped_principal_part"] = eligible["infl"].apply(map_category)
 

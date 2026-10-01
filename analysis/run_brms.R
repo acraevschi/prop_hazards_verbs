@@ -40,6 +40,8 @@
 #    - Tensor | Lemma Freq (k=4): `tensor_fit_marking_type_k4.rds` (lemma frequency, k=4)
 #    - Smooth Interaction (k=10): `base_fit_marking_type_k10.rds` (additive smooths, k=10)
 #    - Smooth Interaction (k=4): `base_fit_marking_type.rds` (additive smooths, k=4 baseline)
+#    - Smooth Interaction | Token Freq (k=10): `base_fit_marking_type_k10_token.rds` (additive smooths, token freq, k=10)
+#    - Smooth Interaction | Token Freq (k=4): `base_fit_marking_type_k4_token.rds` (additive smooths, token freq, k=4)
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -86,7 +88,7 @@ print_cli_help <- function() {
   cat("  --test                 Quick test run with small iterations/chains [default: FALSE]\n")
   cat("  --dry-run              Validate formulas & Stan code without sampling [default: FALSE]\n")
   cat("  --prepare-only          Write explicit deduplicated model data and exit [default: FALSE]\n")
-  cat("  --model <str>          Which model to fit (1-6, or all) [default: all]\n")
+  cat("  --model <str>          Which model to fit (1-8, or all) [default: all]\n")
   cat("  -h, --help             Show this help message and exit\n\n")
   cat("Booleans accept true/false, yes/no, and 1/0. You can also write\n")
   cat("--no-overwrite, --no-test, etc.\n\n")
@@ -679,7 +681,7 @@ if (cfg$model %in% c("all", "1", "base_k4")) {
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/base_fit_marking_type",
-    model_title = "[1/6] Estimating Model 1: Smooth Interaction GAMM (k=4) [Appendix Baseline]"
+    model_title = "[1/8] Estimating Model 1: Smooth Interaction GAMM (k=4) [Appendix Baseline]"
   )
 }
 
@@ -711,7 +713,7 @@ if (cfg$model %in% c("all", "2", "base_k10")) {
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/base_fit_marking_type_k10",
-    model_title = "[2/6] Estimating Model 2: Smooth Interaction GAMM (k=10)"
+    model_title = "[2/8] Estimating Model 2: Smooth Interaction GAMM (k=10)"
   )
 }
 
@@ -743,7 +745,7 @@ if (cfg$model %in% c("all", "3", "tensor_k10")) {
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/tensor_fit_marking_type_k10",
-    model_title = "[3/6] Estimating Model 3: Tensor Product with Lemma Frequency (k=10) [Frequency Sensitivity]"
+    model_title = "[3/8] Estimating Model 3: Tensor Product with Lemma Frequency (k=10) [Frequency Sensitivity]"
   )
 }
 
@@ -775,7 +777,7 @@ if (cfg$model %in% c("all", "4", "tensor_k4")) {
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/tensor_fit_marking_type_k4",
-    model_title = "[4/6] Estimating Model 4: Tensor Product with Lemma Frequency (k=4) [Basis-Dimension + Frequency Sensitivity]"
+    model_title = "[4/8] Estimating Model 4: Tensor Product with Lemma Frequency (k=4) [Basis-Dimension + Frequency Sensitivity]"
   )
 }
 
@@ -807,7 +809,7 @@ if (cfg$model %in% c("all", "5", "tensor_token", "token", "tensor_token_k10", "t
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/tensor_fit_marking_type_k10_token",
-    model_title = "[5/6] Estimating Model 5: Tensor Product with Token Frequency (k=10) [Primary Model]"
+    model_title = "[5/8] Estimating Model 5: Tensor Product with Token Frequency (k=10) [Primary Model]"
   )
 }
 
@@ -839,7 +841,71 @@ if (cfg$model %in% c("all", "6", "tensor_token_k4", "token_k4", "token4")) {
     threads = threads,
     mcmc_control = mcmc_control,
     file_base = "fits/tensor_fit_marking_type_k4_token",
-    model_title = "[6/6] Estimating Model 6: Tensor Product with Token Frequency (k=4) [Basis-Dimension Sensitivity]"
+    model_title = "[6/8] Estimating Model 6: Tensor Product with Token Frequency (k=4) [Basis-Dimension Sensitivity]"
+  )
+}
+
+# ------------------------------------------------------------------------------
+# Model 7: Smooth Interaction with Token Frequency (k=10)
+# ------------------------------------------------------------------------------
+if (cfg$model %in% c("all", "7", "base_token_k10", "base_k10_token", "token_base_k10")) {
+  formula_base_token_k10 <- bf(
+    has_levelled ~
+      s(date, k = 10) +
+      marking_type +
+      s(date, by = marking_type, k = 10) +
+      log_token_freq + s(date, by = log_token_freq, k = 10) +
+      has_alt_pres + log_alt_pres_freq +
+      has_alt_past + log_alt_past_freq +
+      std_infl + s(date, by = std_infl, k = 10) +
+      std_infl * marking_type +
+      (1 | variety) + s(date, by = variety, k = 10) +
+      (1 | lemma_std) +
+      (1 | document_id),
+    family = bernoulli()
+  )
+
+  fit_base_token_k10 <- fit_and_cache_model(
+    formula = formula_base_token_k10,
+    data = model_data,
+    priors = priors,
+    cfg = cfg,
+    threads = threads,
+    mcmc_control = mcmc_control,
+    file_base = "fits/base_fit_marking_type_k10_token",
+    model_title = "[7/8] Estimating Model 7: Smooth Interaction with Token Frequency (k=10)"
+  )
+}
+
+# ------------------------------------------------------------------------------
+# Model 8: Smooth Interaction with Token Frequency (k=4)
+# ------------------------------------------------------------------------------
+if (cfg$model %in% c("all", "8", "base_token_k4", "base_k4_token", "token_base_k4")) {
+  formula_base_token_k4 <- bf(
+    has_levelled ~
+      s(date, k = 4) +
+      marking_type +
+      s(date, by = marking_type, k = 4) +
+      log_token_freq + s(date, by = log_token_freq, k = 4) +
+      has_alt_pres + log_alt_pres_freq +
+      has_alt_past + log_alt_past_freq +
+      std_infl + s(date, by = std_infl, k = 4) +
+      std_infl * marking_type +
+      (1 | variety) + s(date, by = variety, k = 4) +
+      (1 | lemma_std) +
+      (1 | document_id),
+    family = bernoulli()
+  )
+
+  fit_base_token_k4 <- fit_and_cache_model(
+    formula = formula_base_token_k4,
+    data = model_data,
+    priors = priors,
+    cfg = cfg,
+    threads = threads,
+    mcmc_control = mcmc_control,
+    file_base = "fits/base_fit_marking_type_k4_token",
+    model_title = "[8/8] Estimating Model 8: Smooth Interaction with Token Frequency (k=4)"
   )
 }
 

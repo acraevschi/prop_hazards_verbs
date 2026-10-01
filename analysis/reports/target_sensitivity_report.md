@@ -15,10 +15,10 @@ conditional denominator visible.
 
 | comparison | element | all_coded_rows | production_codable | alternative_codable | codable_in_both | production_only | alternative_only | neither_codable | concordant_labels | discordant_labels | flips_0_to_1 | flips_1_to_0 | outcome_agreement_pct_among_both |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| strict corpus date >= 1500 | Vowels | 47,248 | 38,291 | 38,291 | 38,291 | 0 | 0 | 8,957 | 38,291 | 0 | 0 | 0 | 100.000 |
-| strict corpus date >= 1500 | Consonants | 47,248 | 1,502 | 1,502 | 1,502 | 0 | 0 | 45,746 | 1,502 | 0 | 0 | 0 | 100.000 |
-| late corpus with per-tense fallback | Vowels | 47,248 | 38,291 | 38,291 | 38,291 | 0 | 0 | 8,957 | 38,291 | 0 | 0 | 0 | 100.000 |
-| late corpus with per-tense fallback | Consonants | 47,248 | 1,502 | 1,502 | 1,502 | 0 | 0 | 45,746 | 1,502 | 0 | 0 | 0 | 100.000 |
+| strict corpus date >= 1500 | Vowels | 56,498 | 45,390 | 45,390 | 45,390 | 0 | 0 | 11,108 | 45,390 | 0 | 0 | 0 | 100.000 |
+| strict corpus date >= 1500 | Consonants | 56,498 | 1,778 | 1,778 | 1,778 | 0 | 0 | 54,720 | 1,778 | 0 | 0 | 0 | 100.000 |
+| late corpus with per-tense fallback | Vowels | 56,498 | 45,390 | 45,390 | 45,390 | 0 | 0 | 11,108 | 45,390 | 0 | 0 | 0 | 100.000 |
+| late corpus with per-tense fallback | Consonants | 56,498 | 1,778 | 1,778 | 1,778 | 0 | 0 | 54,720 | 1,778 | 0 | 0 | 0 | 100.000 |
 
 ## Direct target identity
 
@@ -27,14 +27,14 @@ including groups where one or both definitions do not resolve the component.
 
 | comparison | target_component | all_lemma_variety_groups | production_resolved | alternative_resolved | resolved_in_both | production_only | alternative_only | neither_resolved | identical_targets | different_targets | direct_target_agreement_pct_among_both |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| strict corpus date >= 1500 | target_vowel_pres | 531 | 406 | 406 | 406 | 0 | 0 | 125 | 406 | 0 | 100.000 |
-| strict corpus date >= 1500 | target_coda_pres | 531 | 406 | 406 | 406 | 0 | 0 | 125 | 406 | 0 | 100.000 |
-| strict corpus date >= 1500 | target_vowel_past | 531 | 400 | 398 | 398 | 2 | 0 | 131 | 398 | 0 | 100.000 |
-| strict corpus date >= 1500 | target_coda_past | 531 | 400 | 398 | 398 | 2 | 0 | 131 | 398 | 0 | 100.000 |
-| late corpus with per-tense fallback | target_vowel_pres | 531 | 406 | 406 | 406 | 0 | 0 | 125 | 406 | 0 | 100.000 |
-| late corpus with per-tense fallback | target_coda_pres | 531 | 406 | 406 | 406 | 0 | 0 | 125 | 406 | 0 | 100.000 |
-| late corpus with per-tense fallback | target_vowel_past | 531 | 400 | 400 | 400 | 0 | 0 | 131 | 400 | 0 | 100.000 |
-| late corpus with per-tense fallback | target_coda_past | 531 | 400 | 400 | 400 | 0 | 0 | 131 | 400 | 0 | 100.000 |
+| strict corpus date >= 1500 | target_vowel_pres | 548 | 422 | 422 | 422 | 0 | 0 | 126 | 422 | 0 | 100.000 |
+| strict corpus date >= 1500 | target_coda_pres | 548 | 422 | 422 | 422 | 0 | 0 | 126 | 422 | 0 | 100.000 |
+| strict corpus date >= 1500 | target_vowel_past | 548 | 417 | 415 | 415 | 2 | 0 | 131 | 415 | 0 | 100.000 |
+| strict corpus date >= 1500 | target_coda_past | 548 | 417 | 415 | 415 | 2 | 0 | 131 | 415 | 0 | 100.000 |
+| late corpus with per-tense fallback | target_vowel_pres | 548 | 422 | 422 | 422 | 0 | 0 | 126 | 422 | 0 | 100.000 |
+| late corpus with per-tense fallback | target_coda_pres | 548 | 422 | 422 | 422 | 0 | 0 | 126 | 422 | 0 | 100.000 |
+| late corpus with per-tense fallback | target_vowel_past | 548 | 417 | 417 | 417 | 0 | 0 | 131 | 417 | 0 | 100.000 |
+| late corpus with per-tense fallback | target_coda_past | 548 | 417 | 417 | 417 | 0 | 0 | 131 | 417 | 0 | 100.000 |
 
 No percentage in either table is presented as agreement over the missing rows.
 

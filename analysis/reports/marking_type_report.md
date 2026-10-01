@@ -7,10 +7,10 @@ rows of the marking table; the consonant channel is reported separately.
 
 | marking_type | observations | leveled | leveling_pct |
 | :--- | :--- | :--- | :--- |
-| vowel_unipartite | 35,413 | 351 | 0.9912 |
-| vowel_bipartite | 2,878 | 17 | 0.5907 |
-| consonant_bipartite | 1,212 | 68 | 5.611 |
-| total | 39,503 | 436 | 1.104 |
+| vowel_unipartite | 42,028 | 576 | 1.371 |
+| vowel_bipartite | 3,362 | 57 | 1.695 |
+| consonant_bipartite | 1,466 | 155 | 10.57 |
+| total | 46,856 | 788 | 1.682 |
 
 These are source-token channel counts. The GAMM deliberately removes repeated
 instances of the same outcome within a document-lemma-slot cell. The exact
@@ -20,59 +20,59 @@ pre-fit check is:
 
 | marking_type | observations | leveled | preserved | leveling_pct |
 | :--- | :--- | :--- | :--- | :--- |
-| vowel_unipartite | 6,707 | 188 | 6,519 | 2.803 |
-| vowel_bipartite | 803 | 12 | 791 | 1.494 |
-| total | 7,510 | 200 | 7,310 | 2.663 |
+| vowel_unipartite | 8,309 | 309 | 8,000 | 3.719 |
+| vowel_bipartite | 981 | 28 | 953 | 2.854 |
+| total | 9,290 | 337 | 8,953 | 3.628 |
 
 ## Bipartite events at the GAMM observation unit
 
 | lemma_id | lemma | observations | leveled | share_of_events_pct |
 | :--- | :--- | :--- | :--- | :--- |
-| 17 | ziehen | 141 | 3 | 25 |
-| 94 | lîden | 59 | 3 | 25 |
-| 144 | lîhen | 10 | 3 | 25 |
-| 8 | snîden | 24 | 2 | 16.67 |
-| 218 | zîhen | 16 | 1 | 8.333 |
-| 19 | vâhen | 206 | 0 | 0 |
-| 7 | slahen | 94 | 0 | 0 |
-| 215 | verlieren | 82 | 0 | 0 |
-| 133 | hâhen | 60 | 0 | 0 |
+| 17 | ziehen | 207 | 10 | 35.71 |
+| 144 | lîhen | 12 | 5 | 17.86 |
+| 94 | lîden | 61 | 4 | 14.29 |
+| 218 | zîhen | 20 | 3 | 10.71 |
+| 19 | vâhen | 269 | 2 | 7.143 |
+| 133 | hâhen | 67 | 2 | 7.143 |
+| 8 | snîden | 25 | 2 | 7.143 |
+| 7 | slahen | 115 | 0 | 0 |
+| 215 | verlieren | 89 | 0 | 0 |
 | 329 | kièsen | 54 | 0 | 0 |
-| 118 | genesen | 47 | 0 | 0 |
-| 148 | mîden | 10 | 0 | 0 |
+| 118 | genesen | 51 | 0 | 0 |
+| 148 | mîden | 11 | 0 | 0 |
 
 ## Bipartite vowel events by lemma
 
 | lemma_id | lemma | observations | leveled | share_of_events_pct |
 | :--- | :--- | :--- | :--- | :--- |
-| 94 | lîden | 169 | 8 | 47.06 |
-| 17 | ziehen | 627 | 3 | 17.65 |
-| 144 | lîhen | 12 | 3 | 17.65 |
-| 8 | snîden | 46 | 2 | 11.76 |
-| 218 | zîhen | 22 | 1 | 5.882 |
-| 19 | vâhen | 834 | 0 | 0 |
-| 7 | slahen | 638 | 0 | 0 |
-| 215 | verlieren | 165 | 0 | 0 |
-| 118 | genesen | 153 | 0 | 0 |
+| 17 | ziehen | 841 | 34 | 59.65 |
+| 94 | lîden | 173 | 9 | 15.79 |
+| 144 | lîhen | 14 | 5 | 8.772 |
+| 218 | zîhen | 26 | 3 | 5.263 |
+| 19 | vâhen | 1,016 | 2 | 3.509 |
+| 133 | hâhen | 107 | 2 | 3.509 |
+| 8 | snîden | 47 | 2 | 3.509 |
+| 7 | slahen | 678 | 0 | 0 |
+| 215 | verlieren | 183 | 0 | 0 |
+| 118 | genesen | 162 | 0 | 0 |
 | 329 | kièsen | 99 | 0 | 0 |
-| 133 | hâhen | 98 | 0 | 0 |
-| 148 | mîden | 15 | 0 | 0 |
+| 148 | mîden | 16 | 0 | 0 |
 
 ## lîhen and weak-anchor sensitivity
 
 | scenario | bipartite_observations | bipartite_events | bipartite_rate_pct | unipartite_observations | unipartite_events | unipartite_rate_pct | unipartite_to_bipartite_rate_ratio |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| as coded | 803 | 12 | 1.494 | 6,707 | 188 | 2.803 | 1.876 |
-| lîhen forced bipartite in both varieties | 821 | 16 | 1.949 | 6,689 | 184 | 2.751 | 1.411 |
-| all anchor modes require >=2 agreeing tokens | 781 | 8 | 1.024 | 6,500 | 183 | 2.815 | 2.749 |
+| as coded | 981 | 28 | 2.854 | 8,309 | 309 | 3.719 | 1.303 |
+| lîhen forced bipartite in both varieties | 1,003 | 35 | 3.49 | 8,287 | 302 | 3.644 | 1.044 |
+| all anchor modes require >=2 agreeing tokens | 956 | 22 | 2.301 | 8,093 | 302 | 3.732 | 1.622 |
 
 ## Rejected modern variants
 
 | marking_type | observations_production | leveled_production | preserved_production | leveling_pct_production | observations_rejected_variants | leveled_rejected_variants | preserved_rejected_variants | leveling_pct_rejected_variants | observation_difference | event_difference |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| vowel_unipartite | 6,707 | 188 | 6,519 | 2.803 | 6,707 | 186 | 6,521 | 2.773 | 0 | -2 |
-| vowel_bipartite | 803 | 12 | 791 | 1.494 | 803 | 12 | 791 | 1.494 | 0 | 0 |
-| total | 7,510 | 200 | 7,310 | 2.663 | 7,510 | 198 | 7,312 | 2.636 | 0 | -2 |
+| vowel_unipartite | 8,309 | 309 | 8,000 | 3.719 | 8,309 | 307 | 8,002 | 3.695 | 0 | -2 |
+| vowel_bipartite | 981 | 28 | 953 | 2.854 | 981 | 28 | 953 | 2.854 | 0 | 0 |
+| total | 9,290 | 337 | 8,953 | 3.628 | 9,290 | 335 | 8,955 | 3.606 | 0 | -2 |
 
 Period and disaggregated contrast counts are stored in
 `marking_type_periods.csv` and `marking_type_channels.csv`.

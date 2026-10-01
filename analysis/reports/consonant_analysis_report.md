@@ -5,73 +5,73 @@
 This report provides a dedicated empirical audit of the consonant channel (`consonant_bipartite`) in Middle High German (MHG) and Early New High German (ENHG) strong verbs. While the primary Bayesian GAMM models focus on the vocalic channel (`vowel_unipartite` vs `vowel_bipartite`), the consonant channel behaves differently and is reported separately here.
 
 ### Key Findings:
-1. **Elevated Raw Leveling Rate**: The consonant channel exhibits an overall leveling rate of **5.61%** (68 / 1,212 observations), which is substantially higher than bipartite vowel leveling (**0.59%**, OR = 10.0) and unipartite vowel leveling (**0.99%**, OR = 5.94).
-2. **All of it is Verner, by construction**: every paradigm in this channel was admitted by `step_2_establish_baseline` only after a shape test that separates grammatischer Wechsel from Auslautverhärtung. Verner leaves the past plural as the odd cell (*wesen* s ~ s ~ r, *quëden* t ~ t ~ d); devoicing leaves the past singular as the odd cell (*scheiden* d ~ t ~ d). The Class I verbs *snîden*, *lîden* and *mîden* are d ~ t ~ **t** - the plural shares the t - so their t ~ d is grammatischer Wechsel, not a spelling effect. Verner-admitted: **5.61%** (68 / 1,212). Devoicing-shaped: **0 observations**, as expected - a non-zero count here would mean the upstream rule had changed.
-3. **High Concentration**: The largest contributor is *ziehen* (lemma 17, 50.0% of consonant events).
-4. **Observed within-token asymmetry favors consonant leveling, with substantial uncertainty across verbs**: on the 1,083 tokens where both channels are informative, exactly one mark levels in 61 of them, and it is the consonant in **83.6%** of those (lemma-clustered 95% CI 36.4%-100.0%). Because that interval includes the 50% null, the data do not establish a verb-general directional asymmetry. This comparison is reported in section 5.
+1. **Elevated Raw Leveling Rate**: The consonant channel exhibits an overall leveling rate of **10.57%** (155 / 1,466 observations), which is substantially higher than bipartite vowel leveling (**1.70%**, OR = 6.86) and unipartite vowel leveling (**1.37%**, OR = 8.51).
+2. **All of it is Verner, by construction**: every paradigm in this channel was admitted by `step_2_establish_baseline` only after a shape test that separates grammatischer Wechsel from Auslautverhärtung. Verner leaves the past plural as the odd cell (*wesen* s ~ s ~ r, *quëden* t ~ t ~ d); devoicing leaves the past singular as the odd cell (*scheiden* d ~ t ~ d). The Class I verbs *snîden*, *lîden* and *mîden* are d ~ t ~ **t** - the plural shares the t - so their t ~ d is grammatischer Wechsel, not a spelling effect. Verner-admitted: **10.57%** (155 / 1,466). Devoicing-shaped: **0 observations**, as expected - a non-zero count here would mean the upstream rule had changed.
+3. **High Concentration**: The largest contributor is *ziehen* (lemma 17, 65.8% of consonant events).
+4. **Observed within-token asymmetry favors consonant leveling, with substantial uncertainty across verbs**: on the 1,321 tokens where both channels are informative, exactly one mark levels in 131 of them, and it is the consonant in **84.7%** of those (lemma-clustered 95% CI 42.9%-100.0%). Because that interval includes the 50% null, the data do not establish a verb-general directional asymmetry. This comparison is reported in section 5.
 
 ## 1. Overall Marking Type Leveling Rates
 
 | Marking Type | Observations | Leveling Events | Leveling Rate (%) |
 | :--- | :---: | :---: | :---: |
-| `vowel_unipartite` | 35,413 | 351 | 0.99% |
-| `vowel_bipartite` | 2,878 | 17 | 0.59% |
-| `consonant_bipartite` | 1,212 | 68 | 5.61% |
+| `vowel_unipartite` | 42,028 | 576 | 1.37% |
+| `vowel_bipartite` | 3,362 | 57 | 1.70% |
+| `consonant_bipartite` | 1,466 | 155 | 10.57% |
 
 ## 2. Breakdown by the Admitting Clause of the Bipartite Rule
 
 | Alternation Category | Lemmas | Observations | Leveled | Leveling Rate (%) | Share of Consonant Events |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Verner (medial, pres ~ past)** | 4 | 350 | 22 | 6.29% | 32.4% |
-| **Verner (past sg ~ past pl)** | 5 | 862 | 46 | 5.34% | 67.6% |
+| **Verner (medial, pres ~ past)** | 4 | 364 | 27 | 7.42% | 17.4% |
+| **Verner (past sg ~ past pl)** | 5 | 1,102 | 128 | 11.62% | 82.6% |
 
 ## 3. Per-Lemma Consonant Breakdown
 
 | Lemma ID | Lemma | Alternation Pattern | Category | Obs | Leveled | Rate (%) | Share (%) |
 | :---: | :--- | :--- | :--- | :---: | :---: | :---: | :---: |
-| 17 | *ziehen* | `g ~ h / g ~ χ, χ ~ g` | Verner (past sg ~ past pl) | 636 | 34 | 5.35% | 50.0% |
-| 144 | *lîhen* | `w ~ h` | Verner (medial, pres ~ past) | 13 | 11 | 84.62% | 16.2% |
-| 94 | *lîden* | `t ~ d` | Verner (medial, pres ~ past) | 246 | 10 | 4.07% | 14.7% |
-| 215 | *verlieren* | `r ~ s / s ~ r, r ~ s` | Verner (past sg ~ past pl) | 94 | 6 | 6.38% | 8.8% |
-| 118 | *genesen* | `r ~ s / s ~ r, r ~ s` | Verner (past sg ~ past pl) | 20 | 5 | 25.00% | 7.4% |
-| 8 | *snîden* | `t ~ d` | Verner (medial, pres ~ past) | 65 | 1 | 1.54% | 1.5% |
-| 218 | *zîhen* | `g ~ h / h ~ g, g ~ χ, g ~ h, χ ~ g` | Verner (past sg ~ past pl) | 13 | 1 | 7.69% | 1.5% |
+| 17 | *ziehen* | `g ~ h / g ~ χ, χ ~ g` | Verner (past sg ~ past pl) | 857 | 102 | 11.90% | 65.8% |
+| 215 | *verlieren* | `r ~ s / s ~ r, r ~ s` | Verner (past sg ~ past pl) | 109 | 20 | 18.35% | 12.9% |
+| 144 | *lîhen* | `w ~ h` | Verner (medial, pres ~ past) | 15 | 13 | 86.67% | 8.4% |
+| 94 | *lîden* | `t ~ d` | Verner (medial, pres ~ past) | 256 | 12 | 4.69% | 7.7% |
+| 118 | *genesen* | `r ~ s / s ~ r, r ~ s` | Verner (past sg ~ past pl) | 20 | 5 | 25.00% | 3.2% |
+| 8 | *snîden* | `t ~ d` | Verner (medial, pres ~ past) | 66 | 2 | 3.03% | 1.3% |
+| 218 | *zîhen* | `g ~ h / g ~ h, g ~ χ, h ~ g, χ ~ g` | Verner (past sg ~ past pl) | 17 | 1 | 5.88% | 0.6% |
 | 329 | *kièsen* | `r ~ s / s ~ r, r ~ s` | Verner (past sg ~ past pl) | 99 | 0 | 0.00% | 0.0% |
-| 148 | *mîden* | `t ~ d` | Verner (medial, pres ~ past) | 26 | 0 | 0.00% | 0.0% |
+| 148 | *mîden* | `t ~ d` | Verner (medial, pres ~ past) | 27 | 0 | 0.00% | 0.0% |
 
 ## 4. Statistical Contrast Analysis (Unpaired - Descriptive Only)
 
-> **Read these as descriptive rates, not as tests.** The consonant rows and the vowel-bipartite rows are not independent samples: 1,083 of them are the *same tokens*, each contributing one row to each channel. Fisher's exact test assumes independence, so the p-values below are far smaller than the evidence warrants, and the events are concentrated in a handful of verbs besides. The consonant-vs-vowel comparison is tested properly in section 5, which uses the pairing instead of ignoring it. The `Vowel Unipartite` row is a between-lemma contrast and is reported for scale only; the modelled version of that contrast is the GAMM in `analysis/run_brms.R`.
+> **Read these as descriptive rates, not as tests.** The consonant rows and the vowel-bipartite rows are not independent samples: 1,321 of them are the *same tokens*, each contributing one row to each channel. Fisher's exact test assumes independence, so the p-values below are far smaller than the evidence warrants, and the events are concentrated in a handful of verbs besides. The consonant-vs-vowel comparison is tested properly in section 5, which uses the pairing instead of ignoring it. The `Vowel Unipartite` row is a between-lemma contrast and is reported for scale only; the modelled version of that contrast is the GAMM in `analysis/run_brms.R`.
 
 | Comparison | Group 1 Rate | Group 2 Rate | Odds Ratio | 95% Confidence Interval | p-value (Fisher) |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| Consonant Bipartite (All) vs. Vowel Unipartite | 5.61% | 0.99% | 5.94 | [4.55, 7.75] | 1.45e-27 |
-| Consonant Bipartite (All) vs. Vowel Bipartite | 5.61% | 0.59% | 10.00 | [5.85, 17.1] | 3.67e-22 |
-| Consonant Verner-admitted vs. Vowel Bipartite | 5.61% | 0.59% | 10.00 | [5.85, 17.1] | 3.67e-22 |
+| Consonant Bipartite (All) vs. Vowel Unipartite | 10.57% | 1.37% | 8.51 | [7.07, 10.24] | 1.38e-77 |
+| Consonant Bipartite (All) vs. Vowel Bipartite | 10.57% | 1.70% | 6.86 | [5.03, 9.35] | 2.70e-39 |
+| Consonant Verner-admitted vs. Vowel Bipartite | 10.57% | 1.70% | 6.86 | [5.03, 9.35] | 2.70e-39 |
 | Consonant Devoicing-shaped vs. Vowel Bipartite | - | - | - | - | no observations in one of the two groups |
 
 ## 5. Within-Token Channel Asymmetry (Paired Design)
 
 Sections 1-4 compare channels as if they were separate samples. They are not. Every bipartite token carries a vowel row and a consonant row describing the same attestation, so the two are a matched pair: same observation_id, verb, document, date, scribe, inflectional slot, and frequency. Everything the GAMM spends its covariates controlling for cancels by construction here. The question this design answers is not *how much* each channel levels, but **which mark gives way when only one of them does**.
 
-Matched tokens: **1,083** across **9** bipartite verbs.
+Matched tokens: **1,321** across **9** bipartite verbs.
 
 | | Consonant resisted | Consonant leveled |
 | :--- | :---: | :---: |
-| **Vowel resisted** | 1,018 | 51 |
-| **Vowel leveled** | 10 | 4 |
+| **Vowel resisted** | 1,162 | 111 |
+| **Vowel leveled** | 20 | 28 |
 
-Concordant tokens (both marks resisted, or both leveled) carry no information about direction, so the test is the exact binomial on the **61 discordant** tokens - McNemar's test in its exact form. This exact p-value is conditional on treating the discordant tokens as independent. Pairing controls the comparison within a token, but it does not make repeated tokens from the same verb or document independent.
+Concordant tokens (both marks resisted, or both leveled) carry no information about direction, so the test is the exact binomial on the **131 discordant** tokens - McNemar's test in its exact form. This exact p-value is conditional on treating the discordant tokens as independent. Pairing controls the comparison within a token, but it does not make repeated tokens from the same verb or document independent.
 
 | Quantity | Value |
 | :--- | :--- |
-| Discordant tokens | 61 |
-| Consonant gave way | 51 |
-| Vowel gave way | 10 |
-| P(the mark that gives way is the consonant) | **83.6%** |
-| Exact binomial p (vs 50%) | 9.62e-08 |
-| Lemma-clustered 95% CI | (36.4%, 100.0%) |
-| Bootstrap draws reversing the direction | 5.7% |
+| Discordant tokens | 131 |
+| Consonant gave way | 111 |
+| Vowel gave way | 20 |
+| P(the mark that gives way is the consonant) | **84.7%** |
+| Exact binomial p (vs 50%) | 1.76e-16 |
+| Lemma-clustered 95% CI | (42.9%, 100.0%) |
+| Bootstrap draws reversing the direction | 3.5% |
 
 The interval resamples **verbs**, not tokens. The events are concentrated, and an interval built by resampling tokens would count one verb's many attestations as many independent facts. The clustered interval is therefore much wider than the exact p-value suggests, includes the 50% null, and is the one to quote. It addresses concentration by verb; it does not turn the observed asymmetry into evidence about which channel changed earlier or at a faster historical rate.
 
@@ -79,14 +79,14 @@ The interval resamples **verbs**, not tokens. The events are concentrated, and a
 
 | Lemma ID | Lemma | Paired Tokens | Consonant Only | Vowel Only | Discordant | Share (%) |
 | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
-| 17 | *ziehen* | 626 | 33 | 3 | 36 | 59.0% |
-| 144 | *lîhen* | 12 | 8 | 0 | 8 | 13.1% |
-| 94 | *lîden* | 169 | 0 | 7 | 7 | 11.5% |
-| 215 | *verlieren* | 94 | 6 | 0 | 6 | 9.8% |
-| 118 | *genesen* | 19 | 4 | 0 | 4 | 6.6% |
-| 8 | *snîden* | 44 | 0 | 0 | 0 | 0.0% |
-| 148 | *mîden* | 15 | 0 | 0 | 0 | 0.0% |
-| 218 | *zîhen* | 5 | 0 | 0 | 0 | 0.0% |
+| 17 | *ziehen* | 840 | 78 | 12 | 90 | 68.7% |
+| 215 | *verlieren* | 109 | 20 | 0 | 20 | 15.3% |
+| 94 | *lîden* | 173 | 0 | 8 | 8 | 6.1% |
+| 144 | *lîhen* | 14 | 8 | 0 | 8 | 6.1% |
+| 118 | *genesen* | 19 | 4 | 0 | 4 | 3.1% |
+| 8 | *snîden* | 45 | 1 | 0 | 1 | 0.8% |
+| 148 | *mîden* | 16 | 0 | 0 | 0 | 0.0% |
+| 218 | *zîhen* | 6 | 0 | 0 | 0 | 0.0% |
 | 329 | *kièsen* | 99 | 0 | 0 | 0 | 0.0% |
 
 ### 5.2 What this does and does not support

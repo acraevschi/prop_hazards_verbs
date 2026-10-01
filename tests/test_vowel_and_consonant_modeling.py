@@ -65,16 +65,16 @@ class TestVowelModelingData(unittest.TestCase):
         )
         self.assertTrue((self.df["outcome_token_count"] == expected_count).all())
         cells = self.df.drop_duplicates("cell_id")
-        self.assertEqual(int(cells["n_tokens"].sum()), 38291)
+        self.assertEqual(int(cells["n_tokens"].sum()), 45390)
         mixed = (cells["leveled_tokens"] > 0) & (cells["preserved_tokens"] > 0)
-        self.assertEqual(int(mixed.sum()), 88)
+        self.assertEqual(int(mixed.sum()), 116)
 
     def test_each_modeling_row_is_one_distinct_cell_outcome(self):
         key = ["document_id", "lemma_std", "std_infl", "has_levelled"]
         self.assertFalse(self.df.duplicated(key).any())
         self.assertFalse(self.df["model_row_id"].duplicated().any())
-        self.assertEqual(len(self.df), 7510)
-        self.assertEqual(self.df["cell_id"].nunique(), 7422)
+        self.assertEqual(len(self.df), 9290)
+        self.assertEqual(self.df["cell_id"].nunique(), 9174)
         self.assertTrue(self.df["document_id"].str.match(r"^(MHG|ENHG):").all())
 
     def test_cell_frequency_aggregation_is_auditable(self):
@@ -91,10 +91,10 @@ class TestVowelModelingData(unittest.TestCase):
             self.df.groupby("marking_type")["has_levelled"]
             .agg(observations="count", leveled="sum")
         )
-        self.assertEqual(int(actual.loc["vowel_unipartite", "observations"]), 6707)
-        self.assertEqual(int(actual.loc["vowel_unipartite", "leveled"]), 188)
-        self.assertEqual(int(actual.loc["vowel_bipartite", "observations"]), 803)
-        self.assertEqual(int(actual.loc["vowel_bipartite", "leveled"]), 12)
+        self.assertEqual(int(actual.loc["vowel_unipartite", "observations"]), 8309)
+        self.assertEqual(int(actual.loc["vowel_unipartite", "leveled"]), 309)
+        self.assertEqual(int(actual.loc["vowel_bipartite", "observations"]), 981)
+        self.assertEqual(int(actual.loc["vowel_bipartite", "leveled"]), 28)
         pd.testing.assert_frame_equal(
             actual.sort_index(),
             expected.loc[["vowel_bipartite", "vowel_unipartite"],
